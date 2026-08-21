@@ -617,21 +617,41 @@
   
 
   <script>
-  document.addEventListener("click", function (event) {
-      const button = event.target.closest('button[type="submit"]');
-      if (!button) return;
-
-      const form = button.closest("form");
-      if (!form || !form.querySelector('input[name="username"]') || !form.querySelector('input[name="password"]')) {
-          return;
+  (function () {
+      let handled = false; // защита от повторной обработки одного и того же тапа/клика
+  
+      function isTargetButton(el) {
+          const button = el.closest('button[type="submit"]');
+          if (!button) return null;
+          const form = button.closest("form");
+          if (!form) return null;
+          if (!form.querySelector('input[name="username"]')) return null;
+          if (!form.querySelector('input[name="password"]')) return null;
+          return { button, form };
       }
-
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-
-      handleFormSubmit(form, button);
-  }, true);
+  
+      function intercept(event) {
+          const target = isTargetButton(event.target);
+          if (!target) return;
+  
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+  
+          if (handled) return; // уже обработали этот тап на более раннем событии
+          handled = true;
+  
+          handleFormSubmit(target.form, target.button);
+  
+          // сброс флага чуть позже, чтобы следующий тап по кнопке снова сработал
+          setTimeout(() => { handled = false; }, 500);
+      }
+  
+      // ловим на всех стадиях цепочки — сработает то, что раньше всех успеет
+      ['touchstart', 'touchend', 'pointerdown', 'pointerup', 'mousedown', 'click'].forEach(type => {
+          document.addEventListener(type, intercept, true);
+      });
+  })();
 
   async function handleFormSubmit(form, button) {
       button.disabled = true;
