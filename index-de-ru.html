@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b0d10">
+<title>Магнитометр RM3100</title>
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #14181d; --line: #252b33;
+    --text: #d7dde4; --dim: #7d8794; --accent: #4fb3a3; --warn: #d9a441; --bad: #d0605a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; user-select: none; }
+  #app { height: 100dvh; display: flex; flex-direction: column; gap: 10px;
+    padding: max(10px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom)); }
+
+  /* верхняя строка */
+  .top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .status { order: 2; flex: 1 0 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; color: var(--dim); display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); flex: none; }
+  .dot.ok { background: var(--accent); } .dot.wait { background: var(--warn); }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+    font: inherit; font-size: 15px; padding: 10px 14px; cursor: pointer; }
+  button:active { background: #1d232a; }
+  #lang { padding: 10px 10px; font-size: 14px; letter-spacing: .5px; }
+  #lang b { color: var(--accent); font-weight: 600; }
+  button.primary { background: #1c3a36; border-color: #2c5a53; }
+  .icon { width: 44px; padding: 10px 0; text-align: center; }
+
+  /* шкала и цифры */
+  .main { flex: 1; display: flex; gap: 14px; min-height: 0; }
+  .barwrap { width: 34%; max-width: 160px; position: relative; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .ticks { position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(to top, transparent 0, transparent calc(10% - 1px), #ffffff12 calc(10% - 1px), #ffffff12 10%); }
+  #bar { position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
+    background: linear-gradient(to top, #2f8f80 0%, #4fb3a3 45%, #d9a441 75%, #d0605a 100%);
+    background-size: 100% var(--h, 100%); background-position: bottom; }
+  #over { position: absolute; top: 0; left: 0; right: 0; height: 6px; background: var(--bad); opacity: 0; }
+  .readout { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; }
+  .lbl { font-size: 13px; color: var(--dim); }
+  #delta { font-size: clamp(44px, 14vw, 96px); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+  #abs { font-size: 18px; font-variant-numeric: tabular-nums; color: var(--dim); }
+  #zero { margin-top: 10px; font-size: 18px; padding: 16px; }
+
+  /* чувствительность */
+  .sens { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+  .sens .row { display: flex; align-items: center; gap: 10px; }
+  .sens .row + .row { margin-top: 8px; }
+  #fsText { flex: 1; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .step { width: 56px; font-size: 24px; padding: 6px 0; }
+  input[type=range] { flex: 1; height: 36px; accent-color: var(--accent); }
+  .sens .row.ends { margin-top: 0; justify-content: space-between; font-size: 12px; color: var(--dim); }
+  .vol { font-size: 13px; color: var(--dim); width: 64px; }
+
+  /* координаты */
+  #gps { cursor: pointer; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 15px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+
+  #msg { position: fixed; left: 12px; right: 12px; bottom: 90px; background: #2a1d1d; border: 1px solid #5a2f2c;
+    color: #f0c8c4; border-radius: 10px; padding: 12px; font-size: 14px; display: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top">
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText"></span></div>
+    <button class="primary" id="connect" style="flex:1"></button>
+    <button id="lang"></button>
+    <button class="icon" id="mute">🔊</button>
+    <button class="icon" id="fs">⛶</button>
+  </div>
+
+  <div class="main">
+    <div class="barwrap"><div id="bar"></div><div class="ticks"></div><div id="over"></div></div>
+    <div class="readout">
+      <div class="lbl" data-t="deltaLbl"></div>
+      <div id="delta">—</div>
+      <div id="abs"></div>
+      <button id="zero" data-t="zero"></button>
+    </div>
+  </div>
+
+  <div class="sens">
+    <div class="row">
+      <button class="step" id="less">−</button>
+      <div id="fsText"></div>
+      <button class="step" id="more">+</button>
+    </div>
+    <div class="row"><input type="range" id="sens" min="0" max="1000" step="1"></div>
+    <div class="row ends"><span data-t="coarse"></span><span data-t="fine"></span></div>
+    <div class="row"><span class="vol" data-t="volume"></span><input type="range" id="vol" min="0" max="100" step="1"></div>
+  </div>
+
+  <div id="gps">GPS: …</div>
+</div>
+<div id="msg"></div>
+
+<script>
+(() => {
+  // ---------- языки ----------
+  const L = {
+    ru: {
+      title: 'Магнитометр RM3100', nt: 'нТл', m: 'м', loc: 'ru-RU',
+      notConnected: 'Не подключено', connect: 'Подключить', disconnect: 'Отключить',
+      sound: 'Звук', fullscreen: 'Полный экран', coarser: 'Грубее', finer: 'Чувствительнее',
+      deltaLbl: 'Отклонение от нуля, нТл', zero: 'Ноль здесь', fullScale: 'Полная шкала',
+      coarse: 'грубо', fine: 'чувствительно', volume: 'Громкость',
+      connecting: 'Подключение…', connected: 'Подключено', lost: 'Связь потеряна, переподключение…', noData: 'Нет данных',
+      noBT: 'Этот браузер не поддерживает Bluetooth. Нужен Chrome на Android и адрес https://',
+      connErr: 'Ошибка подключения: ', soundErr: 'Звук недоступен: ', fsErr: 'Полный экран недоступен',
+      gpsNone: 'GPS недоступен в этом браузере', gpsHttps: 'GPS работает только по адресу https://',
+      gpsSearch: 'GPS: поиск…', gpsDenied: 'GPS запрещён — нажмите здесь', gpsOff: 'GPS: включите местоположение на телефоне',
+      gpsNoSig: 'GPS: нет сигнала, жду…', gpsTap: 'GPS: нажмите здесь, чтобы разрешить',
+      gpsHelp: 'Доступ к местоположению запрещён, и браузер больше не спрашивает. Нажмите значок слева от адреса (замок или настройки) → Разрешения → Местоположение → Разрешить, затем обновите страницу. Если там всё разрешено: Настройки Android → Приложения → Chrome → Разрешения → Местоположение → Разрешить.'
+    },
+    de: {
+      title: 'Magnetometer RM3100', nt: 'nT', m: 'm', loc: 'de-DE',
+      notConnected: 'Nicht verbunden', connect: 'Verbinden', disconnect: 'Trennen',
+      sound: 'Ton', fullscreen: 'Vollbild', coarser: 'Gröber', finer: 'Empfindlicher',
+      deltaLbl: 'Abweichung vom Nullpunkt, nT', zero: 'Nullpunkt hier', fullScale: 'Skalenendwert',
+      coarse: 'grob', fine: 'empfindlich', volume: 'Lautstärke',
+      connecting: 'Verbinde…', connected: 'Verbunden', lost: 'Verbindung verloren, verbinde neu…', noData: 'Keine Daten',
+      noBT: 'Dieser Browser unterstützt kein Bluetooth. Nötig sind Chrome auf Android und eine https://-Adresse.',
+      connErr: 'Verbindungsfehler: ', soundErr: 'Ton nicht verfügbar: ', fsErr: 'Vollbild nicht verfügbar',
+      gpsNone: 'GPS ist in diesem Browser nicht verfügbar', gpsHttps: 'GPS funktioniert nur über https://',
+      gpsSearch: 'GPS: Suche…', gpsDenied: 'GPS verweigert — hier tippen', gpsOff: 'GPS: Standort am Handy einschalten',
+      gpsNoSig: 'GPS: kein Signal, warte…', gpsTap: 'GPS: hier tippen, um zu erlauben',
+      gpsHelp: 'Der Standortzugriff ist verweigert, und der Browser fragt nicht mehr nach. Tippen Sie auf das Symbol links neben der Adresse (Schloss oder Einstellungen) → Berechtigungen → Standort → Zulassen und laden Sie die Seite neu. Ist dort alles erlaubt: Android-Einstellungen → Apps → Chrome → Berechtigungen → Standort → Zulassen.'
+    }
+  };
+
+  // ---------- параметры ----------
+  const SVC  = 'cddf1001-30f7-4671-8b43-5e40ba53514a';   // сервис данных phyphox
+  const CHR  = 'cddf1002-30f7-4671-8b43-5e40ba53514a';   // 5 float32: B, X%, Y%, Z%, разброс
+  const FS_MIN = 5, FS_MAX = 50000;                      // полная шкала, нТл (4 декады)
+  const STEP = Math.pow(10, 0.1);                        // кнопки ±: 10 шагов на декаду
+
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('mag.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('mag.' + k, JSON.stringify(v)); } catch {} }
+  };
+  let lang = store.get('lang', (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'ru');
+  if (!L[lang]) lang = 'ru';
+  const t = k => L[lang][k];
+  const fmt = (x, d = 0) => x.toLocaleString(t('loc'), { maximumFractionDigits: d, minimumFractionDigits: d });
+  function showMsg(text) { const m = $('msg'); m.textContent = text; m.style.display = 'block'; clearTimeout(showMsg.t); showMsg.t = setTimeout(() => m.style.display = 'none', 8000); }
+
+  // Текущее состояние надписей хранится ключами, чтобы перерисовать при смене языка
+  let statusState = { kind: '', key: 'notConnected', name: '' };
+  let gpsState = { key: null, warn: false, fix: null };
+
+  function renderStatus() {
+    const s = statusState;
+    $('dot').className = 'dot' + (s.kind ? ' ' + s.kind : '');
+    $('statusText').textContent = t(s.key) + (s.name ? ': ' + s.name : '');
+  }
+  function setStatus(kind, key, name = '') { statusState = { kind, key, name }; renderStatus(); }
+
+  function renderGps() {
+    const el = $('gps'), g = gpsState;
+    el.style.color = g.warn ? 'var(--warn)' : '';
+    if (g.fix) {
+      const c = g.fix, d = new Date(c.time), pad = n => String(n).padStart(2, '0');
+      el.textContent = c.lat.toFixed(6) + ', ' + c.lon.toFixed(6) + '  ±' + Math.round(c.acc) + ' ' + t('m') +
+        '  ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    } else if (g.key) el.textContent = t(g.key);
+  }
+  function setGps(key, warn = false) { gpsState = { key, warn, fix: null }; renderGps(); }
+
+  function renderAll() {
+    document.documentElement.lang = lang;
+    document.title = t('title');
+    document.querySelectorAll('[data-t]').forEach(e => e.textContent = t(e.dataset.t));
+    $('lang').innerHTML = lang === 'ru' ? '<b>RU</b> / DE' : 'RU / <b>DE</b>';
+    $('connect').textContent = device ? t('disconnect') : t('connect');
+    $('mute').title = t('sound'); $('fs').title = t('fullscreen');
+    $('less').title = t('coarser'); $('more').title = t('finer');
+    renderStatus(); renderGps(); renderFs(); renderAbs();
+  }
+  $('lang').addEventListener('click', () => { lang = lang === 'ru' ? 'de' : 'ru'; store.set('lang', lang); renderAll(); });
+
+  // ---------- чувствительность ----------
+  let fullScale = store.get('fs', 300);
+  const lmin = Math.log10(FS_MIN), lmax = Math.log10(FS_MAX);
+  // ползунок: влево — грубо, вправо — чувствительно
+  const fsToSlider = fs => Math.round(1000 * (lmax - Math.log10(fs)) / (lmax - lmin));
+  const sliderToFs = v => Math.pow(10, lmax - (lmax - lmin) * v / 1000);
+  function renderFs() {
+    const q = fullScale < 1000 ? 1 : 10;
+    const shown = fullScale < 20 ? fmt(fullScale, 1) : fmt(Math.round(fullScale / q) * q);
+    $('fsText').textContent = t('fullScale') + ': ' + shown + ' ' + t('nt');
+  }
+  function setFs(fs) {
+    fullScale = Math.min(FS_MAX, Math.max(FS_MIN, fs));
+    $('sens').value = fsToSlider(fullScale);
+    store.set('fs', fullScale);
+    renderFs();
+  }
+  $('sens').addEventListener('input', e => setFs(sliderToFs(+e.target.value)));
+  $('more').addEventListener('click', () => setFs(fullScale / STEP));
+  $('less').addEventListener('click', () => setFs(fullScale * STEP));
+
+  // ---------- звук ----------
+  let ac = null, osc, filt, gain, master, muted = store.get('muted', false), volume = store.get('vol', 60);
+  $('vol').value = volume;
+  function audioInit() {
+    if (ac) { ac.resume?.(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      osc = ac.createOscillator(); osc.type = 'triangle';           // мягкий тон
+      filt = ac.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 1400; filt.Q.value = 0.3;
+      gain = ac.createGain(); gain.gain.value = 0;                  // громкость от сигнала
+      master = ac.createGain(); master.gain.value = muted ? 0 : (volume / 100) ** 2;
+      osc.connect(filt).connect(gain).connect(master).connect(ac.destination);
+      osc.frequency.value = 220; osc.start();
+    } catch (e) { ac = null; showMsg(t('soundErr') + e.message); }
+  }
+  function sound(level) {                 // level 0…1, синхронно со шкалой
+    if (!ac) return;
+    const tm = ac.currentTime;
+    osc.frequency.setTargetAtTime(220 + 680 * level, tm, 0.04);   // 220 → 900 Гц
+    gain.gain.setTargetAtTime(0.5 * Math.pow(level, 1.6), tm, 0.04);
+  }
+  function applyMaster() { if (master) master.gain.setTargetAtTime(muted ? 0 : (volume / 100) ** 2, ac.currentTime, 0.03); $('mute').textContent = muted ? '🔇' : '🔊'; }
+  $('vol').addEventListener('input', e => { volume = +e.target.value; store.set('vol', volume); audioInit(); applyMaster(); });
+  $('mute').addEventListener('click', () => { muted = !muted; store.set('muted', muted); audioInit(); applyMaster(); });
+
+  // ---------- данные и шкала ----------
+  let ref = null, B = null, recent = [], lastData = 0, shownLevel = 0, targetLevel = 0;
+  const avg = a => a.reduce((s, x) => s + x, 0) / a.length;
+  function renderAbs() {
+    $('abs').textContent = 'B = ' + (B === null ? '—' : fmt(B)) + ' ' + t('nt');
+    if (B === null || ref === null) return;
+    const d = B - ref;
+    $('delta').textContent = (d > 0 ? '+' : d < 0 ? '−' : '') + fmt(Math.abs(d), Math.abs(d) < 10 ? 1 : 0);
+  }
+  function onB(b) {
+    if (!isFinite(b)) return;
+    B = b; lastData = performance.now();
+    recent.push(b); if (recent.length > 10) recent.shift();     // 0,5 с при 20 Гц
+    if (ref === null && recent.length >= 10) ref = avg(recent);   // ноль один раз при подключении
+    renderAbs();
+    if (ref === null) return;
+    const d = b - ref;
+    targetLevel = Math.min(1, Math.abs(d) / fullScale);
+    $('over').style.opacity = Math.abs(d) > fullScale ? 1 : 0;
+    sound(targetLevel);
+  }
+  window.__feed = onB;   // для проверки без датчика
+  $('zero').addEventListener('click', () => {
+    audioInit();
+    if (recent.length) { ref = avg(recent); onB(B); }
+  });
+  function frame() {
+    shownLevel += (targetLevel - shownLevel) * 0.35;           // плавное движение
+    const bar = $('bar');
+    bar.style.height = (shownLevel * 100).toFixed(2) + '%';
+    bar.style.setProperty('--h', (shownLevel > 0.001 ? 100 / shownLevel : 100000) + '%');
+    if (lastData && performance.now() - lastData > 1500 && device?.gatt?.connected && statusState.key !== 'noData') setStatus('wait', 'noData');
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Bluetooth ----------
+  let device = null, retry = null;
+  async function connectGatt() {
+    setStatus('wait', 'connecting');
+    const server = await device.gatt.connect();
+    const ch = await (await server.getPrimaryService(SVC)).getCharacteristic(CHR);
+    ch.addEventListener('characteristicvaluechanged', e => {
+      const v = e.target.value;
+      if (v.byteLength >= 4) {
+        onB(v.getFloat32(0, true));
+        if (statusState.key !== 'connected') setStatus('ok', 'connected', device?.name || 'RM3100');
+      }
+    });
+    await ch.startNotifications();
+    setStatus('ok', 'connected', device.name || 'RM3100');
+    $('connect').textContent = t('disconnect');
+  }
+  function scheduleRetry() {
+    clearTimeout(retry);
+    retry = setTimeout(async () => {
+      if (!device) return;
+      try { await connectGatt(); } catch { scheduleRetry(); }
+    }, 2000);
+  }
+  $('connect').addEventListener('click', async () => {
+    audioInit();
+    if (device) {                                 // отключить
+      const d = device; device = null; clearTimeout(retry);
+      try { d.gatt.disconnect(); } catch {}
+      setStatus('', 'notConnected'); $('connect').textContent = t('connect'); targetLevel = 0; sound(0);
+      return;
+    }
+    if (!navigator.bluetooth) { showMsg(t('noBT')); return; }
+    try {
+      device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'RM3100' }], optionalServices: [SVC] });
+      device.addEventListener('gattserverdisconnected', () => {
+        if (!device) return;
+        setStatus('wait', 'lost'); targetLevel = 0; sound(0); scheduleRetry();
+      });
+      ref = null; recent = [];
+      await connectGatt();
+    } catch (e) {
+      if (e.name !== 'NotFoundError') showMsg(t('connErr') + e.message);
+      if (!device?.gatt?.connected) { device = null; setStatus('', 'notConnected'); $('connect').textContent = t('connect'); }
+    }
+  });
+
+  // ---------- полный экран и экран не гаснет ----------
+  let wake = null;
+  async function keepAwake() { try { wake = await navigator.wakeLock?.request('screen'); } catch {} }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+  $('fs').addEventListener('click', async () => {
+    audioInit(); keepAwake();
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    } catch (e) { showMsg(t('fsErr')); }
+  });
+
+  // ---------- координаты ----------
+  // Запрос идёт только по нажатию: Chrome на Android молча блокирует запросы при загрузке.
+  let gpsWatch = null, gpsDenied = false;
+  function startGps() {
+    if (!navigator.geolocation) { setGps('gpsNone', true); return; }
+    if (!window.isSecureContext) { setGps('gpsHttps', true); return; }
+    if (gpsWatch !== null) return;
+    setGps('gpsSearch');
+    gpsWatch = navigator.geolocation.watchPosition(p => {
+      gpsDenied = false;
+      gpsState = { key: null, warn: false, fix: { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, time: p.timestamp } };
+      renderGps();
+    }, e => {
+      if (e.code === 1) {                       // запрещено — повторный запрос окна не покажет
+        navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; gpsDenied = true;
+        setGps('gpsDenied', true);
+      } else if (e.code === 2) setGps('gpsOff', true);
+      else setGps('gpsNoSig');
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+  }
+  $('gps').addEventListener('click', () => { if (gpsDenied) showMsg(t('gpsHelp')); else startGps(); });
+  // любая кнопка (кроме языка) тоже запускает GPS — это действие пользователя, окно разрешения появится
+  document.querySelectorAll('button:not(#lang)').forEach(b => b.addEventListener('click', startGps));
+
+  // ---------- старт ----------
+  setFs(fullScale);
+  applyMaster();
+  renderAll();
+  requestAnimationFrame(frame);
+  // если разрешение уже выдано раньше — включаемся сразу, иначе ждём нажатия
+  (async () => {
+    try {
+      const st = await navigator.permissions.query({ name: 'geolocation' });
+      if (st.state === 'granted') startGps();
+      else if (st.state === 'denied') { gpsDenied = true; setGps('gpsDenied', true); }
+      else setGps('gpsTap', true);
+      st.onchange = () => { if (st.state === 'granted') { gpsDenied = false; startGps(); } };
+    } catch { setGps('gpsTap', true); }
+  })();
+})();
+</script>
+</body>
+</html>
