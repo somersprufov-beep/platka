@@ -54,7 +54,7 @@
   .vol { font-size: 13px; color: var(--dim); width: 64px; }
  
   /* координаты */
-  #gps { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 15px;
+  #gps { cursor: pointer; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 15px;
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
  
@@ -92,7 +92,7 @@
     <div class="row"><span class="vol">Громкость</span><input type="range" id="vol" min="0" max="100" step="1"></div>
   </div>
  
-  <div id="gps">GPS: ожидание…</div>
+  <div id="gps">GPS: …</div>
 </div>
 <div id="msg"></div>
  
@@ -246,15 +246,50 @@
   });
  
   // ---------- координаты ----------
+  // Запрос идёт только по нажатию: Chrome на Android молча блокирует запросы при загрузке.
   const pad = n => String(n).padStart(2, '0');
-  if (!navigator.geolocation) $('gps').textContent = 'GPS недоступен в этом браузере';
-  else navigator.geolocation.watchPosition(p => {
-    const c = p.coords, t = new Date(p.timestamp);
-    $('gps').textContent = c.latitude.toFixed(6) + ', ' + c.longitude.toFixed(6) +
-      '  ±' + Math.round(c.accuracy) + ' м  ' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ':' + pad(t.getSeconds());
-  }, e => {
-    $('gps').textContent = 'GPS: ' + (e.code === 1 ? 'нет разрешения' : e.code === 3 ? 'нет сигнала' : 'ошибка');
-  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  const gpsEl = $('gps');
+  let gpsWatch = null, gpsDenied = false;
+  function gpsHelp(text) { gpsEl.textContent = text; gpsEl.style.color = 'var(--warn)'; }
+  function startGps() {
+    if (!navigator.geolocation) { gpsHelp('GPS недоступен в этом браузере'); return; }
+    if (!window.isSecureContext) { gpsHelp('GPS работает только по адресу https://'); return; }
+    if (gpsWatch !== null) return;
+    gpsEl.textContent = 'GPS: поиск…'; gpsEl.style.color = '';
+    gpsWatch = navigator.geolocation.watchPosition(p => {
+      gpsDenied = false; gpsEl.style.color = '';
+      const c = p.coords, t = new Date(p.timestamp);
+      gpsEl.textContent = c.latitude.toFixed(6) + ', ' + c.longitude.toFixed(6) +
+        '  ±' + Math.round(c.accuracy) + ' м  ' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ':' + pad(t.getSeconds());
+    }, e => {
+      if (e.code === 1) {                       // запрещено — повторный запрос окна не покажет
+        navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; gpsDenied = true;
+        gpsHelp('GPS запрещён — нажмите здесь');
+      } else if (e.code === 2) {
+        gpsHelp('GPS: включите местоположение на телефоне');
+      } else {
+        gpsEl.textContent = 'GPS: нет сигнала, жду…';
+      }
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+  }
+  gpsEl.addEventListener('click', () => {
+    if (gpsDenied) showMsg('Доступ к местоположению запрещён, и браузер больше не спрашивает. ' +
+      'Нажмите значок слева от адреса (замок или настройки) → Разрешения → Местоположение → Разрешить, затем обновите страницу. ' +
+      'Если там всё разрешено: Настройки Android → Приложения → Chrome → Разрешения → Местоположение → Разрешить.');
+    else startGps();
+  });
+  // любая кнопка тоже запускает GPS (это действие пользователя — окно разрешения появится)
+  document.querySelectorAll('button').forEach(b => b.addEventListener('click', startGps));
+  // если разрешение уже выдано раньше — включаемся сразу, иначе ждём нажатия
+  (async () => {
+    try {
+      const st = await navigator.permissions.query({ name: 'geolocation' });
+      if (st.state === 'granted') startGps();
+      else if (st.state === 'denied') { gpsDenied = true; gpsHelp('GPS запрещён — нажмите здесь'); }
+      else gpsHelp('GPS: нажмите здесь, чтобы разрешить');
+      st.onchange = () => { if (st.state === 'granted') { gpsDenied = false; startGps(); } };
+    } catch { gpsHelp('GPS: нажмите здесь, чтобы разрешить'); }
+  })();
 })();
 </script>
 </body>
