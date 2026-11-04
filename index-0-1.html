@@ -103,6 +103,7 @@
     <div class="row ends"><span data-t="coarse"></span><span data-t="fine"></span></div>
     <div class="row"><span class="vol" data-t="smooth"></span><input type="range" id="smooth" min="1" max="32" step="1"><span class="val" id="smoothVal"></span></div>
     <div class="row"><span class="vol" data-t="thrLbl"></span><input type="range" id="thrS" min="0" max="90" step="1"><span class="val" id="thrVal"></span></div>
+    <div class="row"><span class="vol" data-t="pitchLbl"></span><input type="range" id="pitch" min="80" max="400" step="5"><span class="val" id="pitchVal"></span></div>
     <div class="row"><span class="vol" data-t="volume"></span><input type="range" id="vol" min="0" max="100" step="1"></div>
   </div>
  
@@ -120,7 +121,7 @@
       sound: 'Звук', fullscreen: 'Полный экран', coarser: 'Грубее', finer: 'Чувствительнее',
       deltaLbl: 'Отклонение от нуля, нТл', zero: 'Ноль здесь', fullScale: 'Полная шкала',
       coarse: 'грубо', fine: 'чувствительно', volume: 'Громкость',
-      smooth: 'Сглаж.', thrLbl: 'Порог', samples: 'отсч.', off: 'выкл', noise: 'Шум', noiseZone: 'зона шума', ms: 'мс',
+      smooth: 'Сглаж.', thrLbl: 'Порог', pitchLbl: 'Тон', hz: 'Гц', samples: 'отсч.', off: 'выкл', noise: 'Шум', noiseZone: 'зона шума', ms: 'мс',
       connecting: 'Подключение…', connected: 'Подключено', lost: 'Связь потеряна, переподключение…', noData: 'Нет данных',
       noBT: 'Этот браузер не поддерживает Bluetooth. Нужен Chrome на Android и адрес https://',
       connErr: 'Ошибка подключения: ', soundErr: 'Звук недоступен: ', fsErr: 'Полный экран недоступен',
@@ -135,7 +136,7 @@
       sound: 'Ton', fullscreen: 'Vollbild', coarser: 'Gröber', finer: 'Empfindlicher',
       deltaLbl: 'Abweichung vom Nullpunkt, nT', zero: 'Nullpunkt hier', fullScale: 'Skalenendwert',
       coarse: 'grob', fine: 'empfindlich', volume: 'Lautstärke',
-      smooth: 'Glättung', thrLbl: 'Schwelle', samples: 'Werte', off: 'aus', noise: 'Rauschen', noiseZone: 'Rauschzone', ms: 'ms',
+      smooth: 'Glättung', thrLbl: 'Schwelle', pitchLbl: 'Tonhöhe', hz: 'Hz', samples: 'Werte', off: 'aus', noise: 'Rauschen', noiseZone: 'Rauschzone', ms: 'ms',
       connecting: 'Verbinde…', connected: 'Verbunden', lost: 'Verbindung verloren, verbinde neu…', noData: 'Keine Daten',
       noBT: 'Dieser Browser unterstützt kein Bluetooth. Nötig sind Chrome auf Android und eine https://-Adresse.',
       connErr: 'Verbindungsfehler: ', soundErr: 'Ton nicht verfügbar: ', fsErr: 'Vollbild nicht verfügbar',
@@ -193,7 +194,7 @@
     $('connect').textContent = device ? t('disconnect') : t('connect');
     $('mute').title = t('sound'); $('fs').title = t('fullscreen');
     $('less').title = t('coarser'); $('more').title = t('finer');
-    renderStatus(); renderGps(); renderFs(); renderAbs(); renderSmooth(); renderNoise(); renderThr();
+    renderStatus(); renderGps(); renderFs(); renderAbs(); renderSmooth(); renderNoise(); renderThr(); renderPitch();
   }
   $('lang').addEventListener('click', () => { lang = lang === 'ru' ? 'de' : 'ru'; store.set('lang', lang); renderAll(); });
  
@@ -220,36 +221,35 @@
   $('less').addEventListener('click', () => setFs(fullScale * STEP));
  
   // ---------- звук ----------
-  // Как у детекторов в режиме VCO: ниже порога — тишина; выше — чистый тон,
-  // высота и громкость которого растут с силой сигнала. Синус + тихая октава через
-  // мягкий фильтр — без резких гармоник, которые «давят» на ухо.
-  const F_LO = 380, F_HI = 820;              // Гц: тон на пороге → тон на полной шкале
-  let ac = null, osc, osc2, filt, gain, master, muted = store.get('muted', false), volume = store.get('vol', 60);
+  // Как у детекторов в режиме VCO: ниже порога — тишина; выше — низкий «жужжащий» тон,
+  // высота и громкость которого растут с силой сигнала. Тон — прямоугольная волна,
+  // пропущенная через фильтр: низкая основная частота + мягкие гармоники. Гармоники нужны,
+  // потому что маленький динамик телефона сам по себе низких частот почти не воспроизводит.
+  const PITCH_SPAN = 2.5;                   // на полной шкале тон в 2,5 раза выше, чем на пороге
+  let pitch = store.get('pitch', 160);      // Гц, тон на пороге
+  let ac = null, osc, filt, gain, master, muted = store.get('muted', false), volume = store.get('vol', 60);
   $('vol').value = volume;
   function audioInit() {
     if (ac) { ac.resume?.(); return; }
     try {
       ac = new (window.AudioContext || window.webkitAudioContext)();
-      osc = ac.createOscillator(); osc.type = 'sine';
-      osc2 = ac.createOscillator(); osc2.type = 'sine';             // октава выше, тихо — тёплый тембр
-      const g2 = ac.createGain(); g2.gain.value = 0.12;
-      filt = ac.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 1100; filt.Q.value = 0.5;
+      osc = ac.createOscillator(); osc.type = 'square';
+      filt = ac.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 900; filt.Q.value = 0.7;
       gain = ac.createGain(); gain.gain.value = 0;
       master = ac.createGain(); master.gain.value = muted ? 0 : (volume / 100) ** 2;
-      osc.connect(filt); osc2.connect(g2).connect(filt);
-      filt.connect(gain).connect(master).connect(ac.destination);
-      osc.frequency.value = F_LO; osc2.frequency.value = 2 * F_LO;
-      osc.start(); osc2.start();
+      osc.connect(filt).connect(gain).connect(master).connect(ac.destination);
+      osc.frequency.value = pitch; osc.start();
     } catch (e) { ac = null; showMsg(t('soundErr') + e.message); }
   }
   function sound(on, level = 0) {          // on — выше порога; level 0…1 — насколько выше
     if (!ac) return;
-    const tm = ac.currentTime, f = F_LO + (F_HI - F_LO) * level;
+    const tm = ac.currentTime, f = pitch * Math.pow(PITCH_SPAN, level);
     osc.frequency.setTargetAtTime(f, tm, 0.03);
-    osc2.frequency.setTargetAtTime(2 * f, tm, 0.03);
-    // мягкая атака и чуть более долгое затухание, без щелчков
-    gain.gain.setTargetAtTime(on ? 0.14 + 0.26 * Math.sqrt(level) : 0, tm, on ? 0.02 : 0.06);
+    filt.frequency.setTargetAtTime(Math.max(700, f * 5), tm, 0.03);   // тембр не тускнеет на высоких тонах
+    gain.gain.setTargetAtTime(on ? 0.08 + 0.17 * Math.sqrt(level) : 0, tm, on ? 0.02 : 0.06);
   }
+  function renderPitch() { $('pitch').value = pitch; $('pitchVal').textContent = pitch + ' ' + t('hz'); }
+  $('pitch').addEventListener('input', e => { pitch = +e.target.value; store.set('pitch', pitch); renderPitch(); audioInit(); recompute(); });
   function applyMaster() { if (master) master.gain.setTargetAtTime(muted ? 0 : (volume / 100) ** 2, ac.currentTime, 0.03); $('mute').textContent = muted ? '🔇' : '🔊'; }
   $('vol').addEventListener('input', e => { volume = +e.target.value; store.set('vol', volume); audioInit(); applyMaster(); });
   $('mute').addEventListener('click', () => { muted = !muted; store.set('muted', muted); audioInit(); applyMaster(); });
