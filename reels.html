@@ -98,6 +98,12 @@
         <option value="">По умолчанию Puter</option>
       </select>
     </details>
+
+    <details>
+      <summary>Серверы для скачивания (cobalt)</summary>
+      <p class="hint">По одному адресу API в строке. Пусто — встроенный список. Свежие рабочие адреса: cobalt.directory → Instagram.</p>
+      <textarea id="instances" placeholder="https://cobaltapi.cjs.nz"></textarea>
+    </details>
   </div>
 
   <div id="out" class="hidden">
@@ -129,6 +135,8 @@ let current = null;
 
 $("dst").value = store.get("reels-dst", "русский");
 $("model").value = store.get("reels-model", "anthropic/claude-sonnet-5");
+$("instances").value = store.get("reels-instances", "");
+$("instances").onchange = () => store.set("reels-instances", $("instances").value);
 const qp = new URLSearchParams(location.search).get("url");
 if (qp) $("link").value = qp;
 
@@ -198,15 +206,80 @@ async function viaEmbed(code){
   return { video: unescapeUrl(m[1]), caption: "", author: a ? a[1] : "" };
 }
 
+// Public cobalt instances (open-source downloader API, no keys, CORS enabled).
+// Source: cobalt.directory — instances tested as working for Instagram. Editable in settings.
+const DEFAULT_COBALT = [
+  "https://cobaltapi.cjs.nz",
+  "https://apicobalt.mgytr.top",
+  "https://cobaltapi.kittycat.boo",
+  "https://subito-c.meowing.de",
+  "https://rue-cobalt.xenon.zone",
+  "https://melon.clxxped.lol"
+];
+function cobaltList(){
+  const custom = ($("instances").value || "").split(/\s+/).map(s => s.trim().replace(/\/+$/, "")).filter(Boolean);
+  return custom.length ? custom : DEFAULT_COBALT;
+}
+
+async function fetchTimeout(url, opts, ms){
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, { ...opts, signal: ac.signal }); } finally { clearTimeout(t); }
+}
+
+async function cobaltRequest(api, url, mode){
+  const r = await fetchTimeout(api + "/", {
+    method: "POST",
+    headers: { "accept": "application/json", "content-type": "application/json" },
+    body: JSON.stringify(mode === "audio"
+      ? { url, downloadMode: "audio", audioFormat: "mp3", audioBitrate: "128" }
+      : { url, downloadMode: "auto", videoQuality: "480" })
+  }, 25000);
+  const j = await r.json();
+  if (j.status === "tunnel" || j.status === "redirect") return { video: j.url, kind: j.status };
+  if (j.status === "picker" && j.picker) {
+    const v = j.picker.find(p => p.type === "video") || j.picker[0];
+    if (v && v.url) return { video: v.url, kind: "redirect" };
+  }
+  throw new Error((j.error && j.error.code) || j.status || ("HTTP " + r.status));
+}
+
+async function viaCobalt(url){
+  const errs = [];
+  for (const api of cobaltList()) {
+    for (const mode of ["audio", "auto"]) {
+      try {
+        setStatus("Достаю рилс через " + api.replace(/^https?:\/\//, "") + "…");
+        const r = await cobaltRequest(api, url, mode);
+        return { ...r, caption: "", author: "", via: api };
+      } catch(e){ errs.push(api.replace(/^https?:\/\//, "") + " " + mode + ": " + errMsg(e)); }
+    }
+  }
+  throw new Error(errs.join("\n"));
+}
+
 async function getReel(url){
   const code = shortcode(url);
   if (!code) throw new Error("Не похоже на ссылку на рилс (нужно instagram.com/reel/…).");
+  const clean = `https://www.instagram.com/reel/${code}/`;
   let errs = [];
+  try { return await viaCobalt(clean); } catch(e){ errs.push(errMsg(e)); }
   for (const fn of [viaGraphQL, viaEmbed]) {
-    try { const r = await fn(code); if (r && r.video) return r; errs.push(fn.name + ": нет видео"); }
-    catch(e){ errs.push(fn.name + ": " + (e.message || e)); }
+    try { setStatus("Пробую напрямую через Instagram…"); const r = await fn(code); if (r && r.video) return { ...r, kind: "redirect" }; errs.push(fn.name + ": нет видео"); }
+    catch(e){ errs.push(fn.name + ": " + errMsg(e)); }
   }
-  throw new Error("Instagram не отдал видео (" + errs.join("; ") + "). Рилс закрытый или Instagram временно блокирует — попробуй ещё раз или загрузи файл ниже.");
+  throw new Error("Instagram не отдал видео. Подробности:\n" + errs.join("\n") + "\n\nМожно загрузить файл ниже.");
+}
+
+// Download the media as a Blob: direct fetch first (cobalt tunnels allow CORS), then via Puter's CORS-free fetch
+async function getMediaBlob(mediaUrl){
+  let blob = null;
+  try { const r = await fetchTimeout(mediaUrl, {}, 60000); if (r.ok) blob = await r.blob(); } catch(e){}
+  if (!blob || blob.size < 1000) {
+    const r = await puter.net.fetch(mediaUrl, { headers: { "user-agent": UA, "referer": "https://www.instagram.com/" } });
+    blob = await r.blob();
+  }
+  if (!blob || blob.size < 1000) throw new Error("Не удалось скачать файл рилса.");
+  return blob;
 }
 
 // ---------- 2. Speech → text ----------
@@ -227,16 +300,19 @@ async function transcribe(source, lang){
   throw new Error("Не удалось распознать речь: " + errMsg(last));
 }
 
-async function transcribeFromUrl(videoUrl, lang){
-  // first let Puter fetch the URL itself; if that fails, download through puter.net.fetch and send the file
-  try { return await transcribe(videoUrl, lang); }
-  catch(e){
-    setStatus("Скачиваю видео…");
-    const r = await puter.net.fetch(videoUrl, { headers: { "user-agent": UA, "referer": "https://www.instagram.com/" } });
-    const blob = await r.blob();
-    if (blob.size < 1000) throw new Error("Instagram отдал пустой файл.");
+async function transcribeFromUrl(reel, lang){
+  // download the file ourselves (works for cobalt tunnels and, via Puter, for Instagram CDN links)
+  try {
+    setStatus("Скачиваю аудио…");
+    const blob = await getMediaBlob(reel.video);
+    const isAudio = /audio|mpeg/.test(blob.type) || reel.kind === "tunnel";
+    const file = new File([blob], isAudio ? "reel.mp3" : "reel.mp4", { type: blob.type || (isAudio ? "audio/mpeg" : "video/mp4") });
     setStatus("Распознаю речь…");
-    return await transcribe(new File([blob], "reel.mp4", { type: "video/mp4" }), lang);
+    return await transcribe(file, lang);
+  } catch(e){
+    // last resort: give the URL to Puter and let it fetch the file server-side
+    setStatus("Распознаю речь…");
+    return await transcribe(reel.video, lang);
   }
 }
 
@@ -320,7 +396,7 @@ $("go").onclick = () => {
     setStatus("Достаю видео из Instagram…");
     const reel = await getReel(url);
     setStatus("Распознаю речь…");
-    const text = await transcribeFromUrl(reel.video, src);
+    const text = await transcribeFromUrl(reel, src);
     if (!text) return { link: url, author: reel.author, transcript: "", analysis: { lines: [] } };
     setStatus("Перевожу и выписываю слова…");
     const analysis = await analyzeText(text, reel.caption, src, dst);
