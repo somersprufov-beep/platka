@@ -238,8 +238,10 @@ async function cobaltRequest(api, url, mode){
   const j = await r.json();
   if (j.status === "tunnel" || j.status === "redirect") return { video: j.url, kind: j.status };
   if (j.status === "picker" && j.picker) {
-    const v = j.picker.find(p => p.type === "video") || j.picker[0];
+    const v = j.picker.find(p => p.type === "video" || p.type === "gif");
     if (v && v.url) return { video: v.url, kind: "redirect" };
+    if (j.audio) return { video: j.audio, kind: "tunnel" };
+    throw new Error("NO_VIDEO: в посте только фото");
   }
   throw new Error((j.error && j.error.code) || j.status || ("HTTP " + r.status));
 }
@@ -258,16 +260,30 @@ async function getMediaBlob(mediaUrl){
     try {
       const b = await t();
       if (!b || b.size < 1000) { errs.push("пустой файл"); continue; }
-      if (/text\/html|json/.test(b.type)) { errs.push("вместо файла пришла страница"); continue; }
+      const kind = await sniff(b);
+      if (kind === "image") { throw Object.assign(new Error("NO_VIDEO: сервер отдал картинку, а не видео/аудио"), { fatal: true }); }
+      if (kind === "html") { errs.push("вместо файла пришла страница"); continue; }
       return b;
-    } catch(e){ errs.push(errMsg(e)); }
+    } catch(e){ if (e.fatal) throw e; errs.push(errMsg(e)); }
   }
   throw new Error(errs.join(", "));
 }
 
+// Look at the first bytes to tell what we actually downloaded
+async function sniff(blob){
+  const b = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+  const s = String.fromCharCode(...b);
+  if (b[0] === 0xFF && b[1] === 0xD8) return "image";                 // JPEG
+  if (s.startsWith("\x89PNG") || s.startsWith("RIFF") && s.slice(8, 12) === "WEBP" || s.startsWith("GIF8")) return "image";
+  if (/^\s*</.test(s) || /^\s*[{\[]/.test(s)) return "html";
+  if (/^image\//.test(blob.type) && !(s.slice(4, 8) === "ftyp")) return "image";
+  return "media";
+}
+
 function toFile(blob, kind){
   const isAudio = /audio|mpeg/.test(blob.type) || kind === "audio";
-  return new File([blob], isAudio ? "reel.mp3" : "reel.mp4", { type: blob.type && blob.type !== "application/octet-stream" ? blob.type : (isAudio ? "audio/mpeg" : "video/mp4") });
+  const good = /^(audio|video)\//.test(blob.type) ? blob.type : (isAudio ? "audio/mpeg" : "video/mp4");
+  return new File([blob], isAudio ? "reel.mp3" : "reel.mp4", { type: good });
 }
 
 // Link → audio/video File. Every cobalt server × mode is tried until one actually delivers a downloadable file.
@@ -299,6 +315,8 @@ async function getReelFile(url){
       return { file: toFile(blob, "video"), author: r.author, caption: r.caption, via: "instagram" };
     } catch(e){ errs.push(fn.name + ": " + errMsg(e)); }
   }
+  if (errs.length && errs.filter(e => /NO_VIDEO/.test(e)).length >= Math.ceil(errs.length / 2))
+    throw new Error("Instagram: в этом посте нет видео — похоже, это фото или карусель с картинками. Сайт работает с рилсами, где есть речь.");
   throw new Error("Instagram не отдал видео. Подробности:\n" + errs.join("\n") + "\n\nМожно загрузить файл ниже.");
 }
 
