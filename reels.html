@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reels → слова</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://js.puter.com/v2/"></script>
+<style>
+  :root{--bg:#f6f3ee;--card:#fffdf9;--ink:#1d1b18;--muted:#6f6a62;--line:#e6e0d6;--accent:#d9480f;--accent-soft:#fff0e6;
+    --verb:#5f3dc4;--verb-soft:#f1edff;--word:#0b7285;--word-soft:#e6f7fa;--fun:#c2255c;--fun-soft:#fff0f6}
+  @media (prefers-color-scheme: dark){:root{--bg:#161512;--card:#201e1a;--ink:#f1ede6;--muted:#a29b90;--line:#34312b;--accent:#ff8a4c;--accent-soft:#3a2418;
+    --verb:#b197fc;--verb-soft:#2a2340;--word:#66d9e8;--word-soft:#14303a;--fun:#f783ac;--fun-soft:#3a1a28}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Onest,system-ui,sans-serif;line-height:1.45;-webkit-text-size-adjust:100%}
+  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+  h1{font-size:26px;margin:4px 0 2px;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:15px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+  label{display:block;font-weight:600;font-size:14px;margin:0 0 6px}
+  input,select,textarea{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+  textarea{min-height:110px;resize:vertical}
+  .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 200px}
+  .gap{height:14px}
+  .btn{width:100%;border:0;border-radius:12px;padding:14px;font:inherit;font-size:16px;font-weight:700;background:var(--accent);color:#fff;cursor:pointer}
+  .btn:disabled{opacity:.55}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:600;padding:9px 12px;width:auto;font-size:14px}
+  .err{color:var(--accent);font-size:14px;margin-top:8px;white-space:pre-wrap}
+  .status{color:var(--muted);font-size:14px;margin-top:12px;text-align:center}
+  details{margin-top:12px;font-size:14px;color:var(--muted)} summary{cursor:pointer}
+  details .hint{margin:6px 0}
+  h2{font-size:18px;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .pill{font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+  .meta{font-size:14px;color:var(--muted);margin-bottom:12px}.meta a{color:var(--accent)}
+  .line{padding:10px 0;border-bottom:1px solid var(--line)}.line:last-child{border-bottom:0}
+  .line .o{font-weight:600}.line .t{color:var(--muted);margin-top:2px}
+  .n{display:inline-block;min-width:24px;color:var(--muted);font-size:12px;font-weight:500}
+  .chips{display:grid;gap:8px}
+  .chip{border-radius:12px;padding:10px 12px}.chip b{font-size:16px}.chip .tr{margin-left:6px}
+  .chip .nt{font-size:13px;color:var(--muted);margin-top:3px}
+  .verb{background:var(--verb-soft)}.verb b{color:var(--verb)}
+  .word{background:var(--word-soft)}.word b{color:var(--word)}
+  .fun{background:var(--fun-soft)}.fun b{color:var(--fun)}
+  .toolbar{display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px;flex-wrap:wrap}
+  .hist button{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:10px 0;font:inherit;color:var(--ink);cursor:pointer}
+  .hist small{color:var(--muted)}
+  .hidden{display:none}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 1s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .user{font-size:13px;color:var(--muted);text-align:right;margin-bottom:8px}
+  .user button{background:none;border:0;color:var(--accent);font:inherit;cursor:pointer;padding:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="user" id="user"></div>
+  <h1>Reels → слова</h1>
+  <p class="sub">Ссылка на рилс → транскрипция, построчный перевод, глаголы, слова и интересное.</p>
+
+  <div class="card">
+    <label for="link">Ссылка на рилс</label>
+    <input id="link" type="url" placeholder="https://www.instagram.com/reel/…" inputmode="url" autocomplete="off">
+    <div class="gap"></div>
+    <div class="row">
+      <div><label for="src">Язык рилса</label>
+        <select id="src">
+          <option value="">Определить сам</option>
+          <option value="en">английский</option><option value="de">немецкий</option><option value="es">испанский</option>
+          <option value="fr">французский</option><option value="it">итальянский</option><option value="pt">португальский</option>
+          <option value="tr">турецкий</option><option value="pl">польский</option><option value="uk">украинский</option><option value="ru">русский</option>
+        </select></div>
+      <div><label for="dst">Переводить на</label>
+        <select id="dst"><option>русский</option><option>украинский</option><option>английский</option><option>немецкий</option></select></div>
+    </div>
+    <div class="gap"></div>
+    <button class="btn" id="go">Разобрать</button>
+    <div class="err" id="err"></div>
+    <div class="status hidden" id="status"><span class="spinner"></span><span id="statusText"></span></div>
+
+    <details id="fallback">
+      <summary>Если по ссылке не скачалось</summary>
+      <p class="hint">Загрузи видео/запись экрана рилса или вставь текст — разбор будет тот же.</p>
+      <input id="file" type="file" accept="video/*,audio/*">
+      <div class="gap"></div>
+      <textarea id="manualText" placeholder="…или вставь текст рилса"></textarea>
+      <div class="gap"></div>
+      <button class="btn ghost" id="goManual">Разобрать файл / текст</button>
+    </details>
+
+    <details>
+      <summary>Модель для перевода</summary>
+      <div class="gap"></div>
+      <select id="model">
+        <option value="anthropic/claude-sonnet-5">Claude Sonnet</option>
+        <option value="google/gemini-3-flash-preview">Gemini Flash</option>
+        <option value="openai/gpt-5.4-nano">GPT nano (быстро)</option>
+        <option value="">По умолчанию Puter</option>
+      </select>
+    </details>
+  </div>
+
+  <div id="out" class="hidden">
+    <div class="toolbar">
+      <button class="btn ghost" id="copy">Скопировать всё</button>
+      <button class="btn ghost" id="again">Новый рилс</button>
+    </div>
+    <div class="card">
+      <h2>Текст и перевод <span class="pill" id="lang"></span></h2>
+      <div class="meta" id="meta"></div>
+      <div id="lines"></div>
+    </div>
+    <div class="card"><h2>Глаголы <span class="pill" id="vc"></span></h2><div class="chips" id="verbs"></div></div>
+    <div class="card"><h2>Слова и выражения <span class="pill" id="wc"></span></h2><div class="chips" id="words"></div></div>
+    <div class="card"><h2>Интересное</h2><div class="chips" id="fun"></div></div>
+  </div>
+
+  <div class="card hidden" id="histCard"><h2>История</h2><div class="hist" id="hist"></div></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+let current = null;
+
+$("dst").value = store.get("reels-dst", "русский");
+$("model").value = store.get("reels-model", "anthropic/claude-sonnet-5");
+const qp = new URLSearchParams(location.search).get("url");
+if (qp) $("link").value = qp;
+
+function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function setStatus(t){ $("statusText").textContent = t; }
+
+// ---------- Puter sign-in (free account, no API keys) ----------
+async function ensureSignedIn(){
+  if (typeof puter === "undefined") throw new Error("Не загрузилась библиотека Puter — проверь интернет.");
+  if (!puter.auth.isSignedIn()) await puter.auth.signIn();
+  drawUser();
+}
+async function drawUser(){
+  try {
+    if (typeof puter !== "undefined" && puter.auth.isSignedIn()) {
+      const u = await puter.auth.getUser();
+      $("user").innerHTML = `Puter: ${esc(u.username)} · <button id="out_btn">выйти</button>`;
+      $("out_btn").onclick = () => { puter.auth.signOut(); $("user").textContent = ""; };
+    }
+  } catch(e){}
+}
+window.addEventListener("load", drawUser);
+
+// ---------- 1. Instagram link → video URL ----------
+function shortcode(url){
+  const m = String(url).match(/instagram\.com\/(?:[^/?#]+\/)?(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+  return m ? m[1] : null;
+}
+function unescapeUrl(s){
+  return s.replace(/\\+\//g, "/").replace(/\\+u0026/gi, "&").replace(/&amp;/g, "&").replace(/\\+/g, "");
+}
+
+async function viaGraphQL(code){
+  const variables = { shortcode: code, fetch_tagged_user_count: null, hoisted_comment_id: null, hoisted_reply_id: null };
+  const body = "variables=" + encodeURIComponent(JSON.stringify(variables)) + "&doc_id=8845758582119845";
+  const r = await puter.net.fetch("https://www.instagram.com/graphql/query", {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      "user-agent": UA,
+      "x-ig-app-id": "936619743392459",
+      "x-asbd-id": "129477",
+      "x-fb-friendly-name": "PolarisPostActionLoadPostQueryQuery",
+      "x-csrftoken": "missing",
+      "x-requested-with": "XMLHttpRequest",
+      "origin": "https://www.instagram.com",
+      "referer": `https://www.instagram.com/reel/${code}/`
+    },
+    body
+  });
+  const j = JSON.parse(await r.text());
+  const m = j && j.data && (j.data.xdt_shortcode_media || j.data.shortcode_media);
+  if (!m || !m.video_url) return null;
+  return {
+    video: m.video_url,
+    caption: (((m.edge_media_to_caption || {}).edges || [])[0] || {}).node?.text || "",
+    author: (m.owner || {}).username || ""
+  };
+}
+
+async function viaEmbed(code){
+  const r = await puter.net.fetch(`https://www.instagram.com/p/${code}/embed/captioned/`, { headers: { "user-agent": UA } });
+  const html = await r.text();
+  const m = html.match(/video_url\\*"\s*:\s*\\*"(https?:.*?)\\*"/);
+  if (!m) return null;
+  const a = html.match(/username\\*"\s*:\s*\\*"([A-Za-z0-9._]+)/);
+  return { video: unescapeUrl(m[1]), caption: "", author: a ? a[1] : "" };
+}
+
+async function getReel(url){
+  const code = shortcode(url);
+  if (!code) throw new Error("Не похоже на ссылку на рилс (нужно instagram.com/reel/…).");
+  let errs = [];
+  for (const fn of [viaGraphQL, viaEmbed]) {
+    try { const r = await fn(code); if (r && r.video) return r; errs.push(fn.name + ": нет видео"); }
+    catch(e){ errs.push(fn.name + ": " + (e.message || e)); }
+  }
+  throw new Error("Instagram не отдал видео (" + errs.join("; ") + "). Рилс закрытый или Instagram временно блокирует — попробуй ещё раз или загрузи файл ниже.");
+}
+
+// ---------- 2. Speech → text ----------
+async function transcribe(source, lang){
+  const opts = lang ? { language: lang } : {};
+  const attempts = [
+    () => puter.ai.speech2txt(source, opts),
+    () => puter.ai.speech2txt(source, { ...opts, provider: "gemini" })
+  ];
+  let last;
+  for (const a of attempts) {
+    try {
+      const r = await a();
+      const text = typeof r === "string" ? r : (r && (r.text || (r.segments || []).map(s => s.text).join(" "))) || "";
+      return text.trim();
+    } catch(e){ last = e; }
+  }
+  throw new Error("Не удалось распознать речь: " + errMsg(last));
+}
+
+async function transcribeFromUrl(videoUrl, lang){
+  // first let Puter fetch the URL itself; if that fails, download through puter.net.fetch and send the file
+  try { return await transcribe(videoUrl, lang); }
+  catch(e){
+    setStatus("Скачиваю видео…");
+    const r = await puter.net.fetch(videoUrl, { headers: { "user-agent": UA, "referer": "https://www.instagram.com/" } });
+    const blob = await r.blob();
+    if (blob.size < 1000) throw new Error("Instagram отдал пустой файл.");
+    setStatus("Распознаю речь…");
+    return await transcribe(new File([blob], "reel.mp4", { type: "video/mp4" }), lang);
+  }
+}
+
+function errMsg(e){
+  if (!e) return "неизвестная ошибка";
+  if (typeof e === "string") return e;
+  return e.message || (e.error && (e.error.message || e.error)) || JSON.stringify(e).slice(0, 200);
+}
+
+// ---------- 3. Translation + vocabulary ----------
+function buildPrompt(text, caption, src, dst){
+  return `Ты — преподаватель языков. Пользователь изучает язык по рилсам из Instagram.
+
+Вот автоматическая транскрипция речи из рилса:
+"""
+${text}
+"""
+${caption ? `\nПодпись автора под рилсом (только для контекста, не переводи её):\n"""\n${caption.slice(0, 1500)}\n"""\n` : ""}
+Язык оригинала: ${src || "определи сам"}. Язык перевода и всех пояснений: ${dst}.
+
+Задача:
+1. Разбей речь на короткие естественные фразы (строки). Исправь очевидные ошибки распознавания и пунктуацию, не меняя смысла. Выкинь явные «галлюцинации» распознавания (например «Субтитры сделал…», «Thanks for watching» на фоне музыки). Переведи каждую строку естественно, не дословно.
+2. Выпиши ВСЕ глаголы из текста (без повторов): form — как в тексте, base — начальная форма (инфинитив), tr — перевод, note — коротко полезное ученику (время/лицо, неправильный глагол, отделяемая приставка, возвратность, управление/предлог).
+3. Выпиши полезные слова и устойчивые выражения (существительные с артиклем и родом, если они есть в языке, прилагательные, наречия, фразовые конструкции, коллокации). Не дублируй глаголы из п.2. Перевод + короткая заметка при необходимости.
+4. «Интересное»: 3–6 пунктов — сленг, идиомы, разговорные сокращения, игра слов, грамматика, культурный контекст, регистр, произношение. У каждого заголовок и 1–2 предложения объяснения.
+
+Верни ТОЛЬКО JSON без markdown и без пояснений:
+{"source_language":"название языка оригинала на языке перевода","lines":[{"orig":"...","tr":"..."}],"verbs":[{"form":"...","base":"...","tr":"...","note":"..."}],"words":[{"word":"...","tr":"...","note":"..."}],"interesting":[{"title":"...","text":"..."}]}`;
+}
+
+function replyText(r){
+  if (typeof r === "string") return r;
+  const c = r && r.message && r.message.content;
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) return c.map(p => p.text || "").join("");
+  return String(r || "");
+}
+function parseJson(s){
+  s = String(s || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  try { return JSON.parse(s); } catch(e){}
+  const a = s.indexOf("{"), b = s.lastIndexOf("}");
+  if (a >= 0 && b > a) { try { return JSON.parse(s.slice(a, b + 1)); } catch(e){} }
+  throw new Error("Модель вернула невалидный JSON — попробуй ещё раз или другую модель.");
+}
+
+async function analyzeText(text, caption, src, dst){
+  const model = $("model").value;
+  const prompt = buildPrompt(text, caption, src, dst);
+  let r;
+  try { r = await puter.ai.chat(prompt, model ? { model } : {}); }
+  catch(e){
+    if (!model) throw new Error("Ошибка модели: " + errMsg(e));
+    r = await puter.ai.chat(prompt); // fall back to Puter's default model
+  }
+  return parseJson(replyText(r));
+}
+
+// ---------- Flow ----------
+async function run(task){
+  $("err").textContent = "";
+  store.set("reels-dst", $("dst").value); store.set("reels-model", $("model").value);
+  $("go").disabled = $("goManual").disabled = true; $("status").classList.remove("hidden");
+  try {
+    await ensureSignedIn();
+    const res = await task();
+    current = { ...res, dst: $("dst").value, at: Date.now() };
+    render(current); saveHist(current);
+  } catch(e){
+    $("err").textContent = "Не получилось: " + errMsg(e);
+    if (/Instagram/.test(errMsg(e))) $("fallback").open = true;
+  } finally {
+    $("go").disabled = $("goManual").disabled = false; $("status").classList.add("hidden");
+  }
+}
+
+$("go").onclick = () => {
+  const url = $("link").value.trim();
+  if (!shortcode(url)) { $("err").textContent = "Нужна ссылка вида instagram.com/reel/…"; return; }
+  run(async () => {
+    const src = $("src").value, dst = $("dst").value;
+    setStatus("Достаю видео из Instagram…");
+    const reel = await getReel(url);
+    setStatus("Распознаю речь…");
+    const text = await transcribeFromUrl(reel.video, src);
+    if (!text) return { link: url, author: reel.author, transcript: "", analysis: { lines: [] } };
+    setStatus("Перевожу и выписываю слова…");
+    const analysis = await analyzeText(text, reel.caption, src, dst);
+    return { link: url, author: reel.author, transcript: text, analysis };
+  });
+};
+
+$("goManual").onclick = () => {
+  const f = $("file").files[0], typed = $("manualText").value.trim();
+  if (!f && !typed) { $("err").textContent = "Выбери файл или вставь текст."; return; }
+  run(async () => {
+    const src = $("src").value, dst = $("dst").value;
+    let text = typed;
+    if (f) { setStatus("Распознаю речь…"); text = await transcribe(f, src); }
+    setStatus("Перевожу и выписываю слова…");
+    const analysis = await analyzeText(text, "", src, dst);
+    return { link: $("link").value.trim(), author: "", transcript: text, analysis };
+  });
+};
+
+// ---------- Render ----------
+function render(d){
+  const a = d.analysis || {};
+  $("out").classList.remove("hidden");
+  $("lang").textContent = (a.source_language || "") + " → " + (d.dst || "");
+  $("meta").innerHTML = (d.link ? `<a href="${esc(d.link)}" target="_blank" rel="noopener">▶ Открыть рилс</a>` : "") + (d.author ? " · @" + esc(d.author) : "");
+  $("lines").innerHTML = (a.lines||[]).map((l,i) => `<div class="line"><div class="o"><span class="n">${i+1}</span>${esc(l.orig)}</div><div class="t"><span class="n"></span>${esc(l.tr)}</div></div>`).join("") || "<p class='meta'>В рилсе не нашлось речи.</p>";
+  const verbs = a.verbs || [], words = a.words || [];
+  $("vc").textContent = verbs.length; $("wc").textContent = words.length;
+  $("verbs").innerHTML = verbs.map(v => `<div class="chip verb"><b>${esc(v.base)}</b>${v.form && v.form !== v.base ? ` <small>(${esc(v.form)})</small>` : ""}<span class="tr">— ${esc(v.tr)}</span>${v.note ? `<div class="nt">${esc(v.note)}</div>` : ""}</div>`).join("") || "<p class='meta'>Нет</p>";
+  $("words").innerHTML = words.map(w => `<div class="chip word"><b>${esc(w.word)}</b><span class="tr">— ${esc(w.tr)}</span>${w.note ? `<div class="nt">${esc(w.note)}</div>` : ""}</div>`).join("") || "<p class='meta'>Нет</p>";
+  $("fun").innerHTML = (a.interesting||[]).map(f => `<div class="chip fun"><b>${esc(f.title)}</b><div class="nt" style="color:var(--ink)">${esc(f.text)}</div></div>`).join("") || "<p class='meta'>Нет</p>";
+  $("out").scrollIntoView({ behavior: "smooth" });
+}
+
+function asText(d){
+  const a = d.analysis || {};
+  let s = (d.link ? d.link + "\n\n" : "") + "ТЕКСТ И ПЕРЕВОД\n" + (a.lines||[]).map((l,i)=>`${i+1}. ${l.orig}\n   ${l.tr}`).join("\n");
+  s += "\n\nГЛАГОЛЫ\n" + (a.verbs||[]).map(v=>`• ${v.base}${v.form&&v.form!==v.base?` (${v.form})`:""} — ${v.tr}${v.note?` [${v.note}]`:""}`).join("\n");
+  s += "\n\nСЛОВА\n" + (a.words||[]).map(w=>`• ${w.word} — ${w.tr}${w.note?` [${w.note}]`:""}`).join("\n");
+  s += "\n\nИНТЕРЕСНОЕ\n" + (a.interesting||[]).map(f=>`• ${f.title}: ${f.text}`).join("\n");
+  return s;
+}
+$("copy").onclick = async () => {
+  if (!current) return;
+  try { await navigator.clipboard.writeText(asText(current)); $("copy").textContent = "Скопировано ✓"; }
+  catch(e){ $("copy").textContent = "Не вышло скопировать"; }
+  setTimeout(()=> $("copy").textContent = "Скопировать всё", 1800);
+};
+$("again").onclick = () => { $("link").value = ""; $("manualText").value = ""; $("file").value = ""; $("out").classList.add("hidden"); window.scrollTo({ top: 0, behavior: "smooth" }); };
+
+function saveHist(d){ const h = store.get("reels-hist", []); h.unshift(d); store.set("reels-hist", h.slice(0, 30)); drawHist(); }
+function drawHist(){
+  const h = store.get("reels-hist", []);
+  $("histCard").classList.toggle("hidden", !h.length);
+  $("hist").innerHTML = "";
+  h.forEach(d => {
+    const a = d.analysis || {};
+    const first = (a.lines && a.lines[0] && a.lines[0].orig) || d.link || "рилс";
+    const b = document.createElement("button");
+    b.innerHTML = `${esc(first.slice(0,70))}${first.length>70?"…":""}<br><small>${d.author ? "@" + esc(d.author) + " · " : ""}${esc(a.source_language||"")} · ${new Date(d.at).toLocaleDateString("ru-RU")}</small>`;
+    b.onclick = () => { current = d; render(d); };
+    $("hist").append(b);
+  });
+}
+drawHist();
+</script>
+</body>
+</html>
