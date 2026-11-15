@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0d0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Пират · поле</title>
+<style>
+  :root{--bg:#0b0d0e;--panel:#15191b;--line:#272e33;--text:#eef3f5;--dim:#8a979f;--ok:#4be0a2;--hot:#ffb347;--max:#ff5f5f;--neg:#6ab4ff;--band:rgba(255,255,255,.07)}
+  body.day{--bg:#f4f6f7;--panel:#ffffff;--line:#cfd6da;--text:#0d1215;--dim:#55636b;--ok:#0a9a62;--hot:#c96a00;--max:#d1221f;--neg:#1f6fd1;--band:rgba(0,0,0,.07)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.35 system-ui,-apple-system,Roboto,sans-serif}
+  body{padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 12px)}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 2px 6px;font-size:13px;color:var(--dim)}
+  .top b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+  .warn{color:var(--max)!important}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:10px}
+  .delta{text-align:center;font:700 clamp(64px,22vw,120px)/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.03em;padding:6px 0 2px;transition:color .1s}
+  .delta small{font-size:.35em;font-weight:500;color:var(--dim)}
+  .sub{display:flex;justify-content:space-between;color:var(--dim);font-size:13px;margin-top:4px}
+  .sub b{color:var(--text);font-variant-numeric:tabular-nums;font-weight:600}
+  .bar{position:relative;height:30px;border-radius:8px;background:var(--bg);border:1px solid var(--line);margin-top:12px;overflow:hidden}
+  .bar .band{position:absolute;top:0;bottom:0;background:var(--band)}
+  .bar .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--dim)}
+  .bar .fill{position:absolute;top:4px;bottom:4px;border-radius:4px}
+  .bar .pk{position:absolute;top:0;bottom:0;width:3px;background:var(--hot)}
+  .barlbl{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:3px}
+  canvas{width:100%;height:150px;display:block;margin-top:10px;border-radius:8px;background:var(--bg);border:1px solid var(--line)}
+  .btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+  button{font:600 16px system-ui,-apple-system,Roboto,sans-serif;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:16px 8px;touch-action:manipulation}
+  button:active{transform:scale(.98)}
+  button.go{background:var(--ok);border-color:var(--ok);color:#03140c}
+  button.go.on{background:var(--max);border-color:var(--max);color:#1d0303}
+  button.zero{background:var(--hot);border-color:var(--hot);color:#1d1003}
+  button:disabled{opacity:.4}
+  .state{margin-top:8px;text-align:center;font-size:14px;color:var(--dim);min-height:20px}
+  .state.busy{color:var(--hot);font-weight:600}
+  .rec{display:flex;gap:8px;margin-top:10px}
+  .rec input{flex:1;min-width:0}
+  input,select{font:16px system-ui,-apple-system,Roboto,sans-serif;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px}
+  .rec button{padding:10px 14px}
+  table{width:100%;border-collapse:collapse;font:13px ui-monospace,Menlo,Consolas,monospace;margin-top:8px}
+  td,th{padding:5px 4px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+  td:first-child,th:first-child{text-align:left}
+  th{color:var(--dim);font-weight:500}
+  details{margin-top:10px}
+  summary{cursor:pointer;color:var(--dim);font-size:14px;padding:6px 2px}
+  label.row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0}
+  label.row input,label.row select{width:120px}
+  label.row input[type=checkbox]{width:22px;height:22px}
+  .hint{font-size:12px;color:var(--dim);margin-top:6px}
+  .small-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .small-btns button{padding:10px 12px;font-size:14px}
+  h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:600}
+  .sndhead{display:flex;justify-content:space-between;align-items:center}
+  button.tog{padding:10px 14px;font-size:15px}
+  button.tog.on{background:var(--ok);border-color:var(--ok);color:#03140c}
+  label.sl{display:block;margin:12px 0 4px;font-size:14px}
+  label.sl b{float:right;font-variant-numeric:tabular-nums}
+  label.sl input{width:100%;margin-top:8px;height:28px;accent-color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="top">
+  <span>Частота <b id="rate">—</b></span>
+  <span>Пик <b id="lvl">—</b></span>
+  <span>Шум <b id="rms">—</b></span>
+  <span id="ago">ноль: —</span>
+</div>
+
+<div class="card">
+  <div class="delta" id="delta">—</div>
+  <div class="sub"><span>площадь <b id="abs">—</b></span><span>значимость <b id="z">—</b></span><span>макс <b id="pk">—</b></span></div>
+  <div class="bar"><div class="band" id="band"></div><div class="mid"></div><div class="fill" id="fill"></div><div class="pk" id="pkm"></div></div>
+  <div class="barlbl"><span id="bl">−</span><span>серая полоса — шум (±3σ)</span><span id="br">+</span></div>
+  <canvas id="chart"></canvas>
+</div>
+
+<div class="btns">
+  <button id="start" class="go">Старт</button>
+  <button id="zero" class="zero" disabled>Ноль</button>
+  <button id="rpk" disabled>Сброс макс</button>
+</div>
+<div class="state" id="state">Нажмите «Старт», затем «Ноль» с катушкой без металла</div>
+
+<div class="card" id="snd">
+  <div class="sndhead"><h3>Звук</h3><button id="sndBtn" class="tog">Звук: выкл</button></div>
+  <label class="sl">Тон (базовая высота) <b id="vFreq"></b><input id="freq" type="range" min="100" max="2000" step="10" value="500"></label>
+  <label class="sl">Рост тона на 1 % отклонения <b id="vSlope"></b><input id="slope" type="range" min="0" max="200" step="5" value="40"></label>
+  <label class="sl">Громкость <b id="vVol"></b><input id="vol" type="range" min="0" max="100" step="1" value="60"></label>
+  <label class="row">Тембр <select id="wave"><option value="sine">мягкий</option><option value="triangle" selected>средний</option><option value="square">резкий</option><option value="sawtooth">звонкий</option></select></label>
+  <label class="sl">Когда звучать<select id="sndMode" style="width:100%;margin-top:8px"><option value="band" selected>только за полосой шума</option><option value="always">всегда (тон следует за отклонением)</option></select></label>
+  <div class="small-btns"><button id="test">Проверить звук</button></div>
+  <div class="hint">Выше нуля тон растёт от базового; ниже нуля — звучит октавой ниже базового. Звук идёт на динамик или наушники телефона; при подключённой гарнитуре-переходнике — в её наушный выход.</div>
+</div>
+
+<div class="card">
+  <h3>Замеры</h3>
+  <div class="rec"><input id="note" placeholder="напр. монета 5 к., 8 см"><button id="save" disabled>Записать</button></div>
+  <table><thead><tr><th>Заметка</th><th>Δ, %</th><th>макс, %</th><th>z</th></tr></thead><tbody id="log"></tbody></table>
+  <div class="small-btns"><button id="copy">Копировать CSV</button><button id="dl">Скачать CSV</button><button id="clr">Очистить</button></div>
+  <div class="hint" id="copied"></div>
+</div>
+
+<details class="card">
+  <summary>Настройки</summary>
+  <label class="row">Вход <select id="dev"><option value="">по умолчанию</option></select></label>
+  <label class="row">Скорость отклика <select id="nf">
+    <option value="8">8 щелч. · 0,06 с</option><option value="16">16 · 0,12 с</option><option value="32" selected>32 · 0,23 с</option><option value="64">64 · 0,47 с</option><option value="128">128 · 0,9 с</option></select></label>
+  <label class="row">Длина обнуления <select id="nr">
+    <option value="256">256 · 2 с</option><option value="512" selected>512 · 4 с</option><option value="1024">1024 · 7 с</option><option value="2048">2048 · 15 с</option></select></label>
+  <div class="hint">Быстрее отклик — шире полоса шума. Площадь одного щелчка у вашего Пирата гуляет ±7 %, поэтому полоса шума ±3σ при 32 щелчках ≈ ±3,7 %, при 64 ≈ ±2,6 %, при 16 ≈ ±5,3 %.</div>
+  <label class="row">Порог срабатывания, % ПШ <input id="thr" type="number" min="1" max="95" step="1" value="18"></label>
+  <label class="row">Окно до, мкс <input id="preUs" type="number" min="0" max="1500" step="10" value="60"></label>
+  <label class="row">Окно после, мкс <input id="winUs" type="number" min="20" max="5000" step="10" value="150"></label>
+  <label class="row">Не гасить экран <input id="wake" type="checkbox" checked></label>
+  <label class="row">Дневная тема <input id="day" type="checkbox"></label>
+  <div class="hint">Порог ставьте примерно в треть от показания «Пик» вверху. «Частота» должна стоять ровно на частоте Пирата (~137 Гц), без провалов: провалы значат пропуски щелчков — уменьшите порог. Если «Пик» красный — перегруз входа, убавьте сигнал (делитель или громкость Пирата). Окно 60/150 мкс подобрано на ноутбуке; площадь в разных настройках окна не сравнивается.</div>
+</details>
+
+<script>
+class ClickCore{
+  constructor(sr, post){
+    this.sr=sr; this.post=post;
+    this.p={mode:0,preUs:100,winUs:400,thr:0.05,endFrac:0.3,holdUs:200,pol:0,base:1,maxMs:20,wave:0};
+    this.PRE=Math.ceil(sr*0.002); this.ring=new Float32Array(this.PRE); this.ri=0;
+    this.buf=new Float32Array(Math.ceil(sr*0.05)+this.PRE+16);
+    this.baseline=0; this.inClick=false; this.n=0;
+    this.lvl=0; this.clip=0; this.lvlN=0; this.isq=0; this.ic=0; this.guard=0; this.lastWaveN=-1e12;
+  }
+  set(o){Object.assign(this.p,o);}
+  m(v){const q=this.p.pol; return q===0?Math.abs(v):(q===1?v:-v);}
+  feed(ch){
+    const p=this.p, sr=this.sr, thr=p.thr, endL=thr*p.endFrac;
+    this.hold=Math.max(1,Math.round(p.holdUs*1e-6*sr));
+    const maxLen=Math.max(4,Math.min(this.buf.length-this.PRE-8,Math.round(p.maxMs*1e-3*sr)));
+    const winN=Math.max(1,Math.min(this.buf.length-this.PRE-8,Math.round(p.winUs*1e-6*sr)));
+    const a=1/(sr*0.02);
+    for(let i=0;i<ch.length;i++){
+      const x=ch[i]; this.n++;
+      if(x>0.99||x<-0.99) this.clip++;
+      const v=p.base? x-this.baseline : x;
+      const s=this.m(v);
+      if(s>this.lvl) this.lvl=s;
+      if(!this.inClick){
+        if(s>thr){ this.startClick(endL,v); }
+        else{
+          if(p.base) this.baseline+=(x-this.baseline)*a;
+          if(this.guard>0) this.guard--; else { this.isq+=v*v; this.ic++; }
+          this.ring[this.ri]=v; this.ri=(this.ri+1)%this.PRE;
+          continue;
+        }
+      }
+      this.buf[this.len++]=v;
+      if(s>this.peak) this.peak=s;
+      if(s>endL) this.above++;
+      if(p.mode===0){
+        this.area+=this.sgn*v;
+        if(this.len-this.PRE>=winN) this.finish(false);
+      } else {
+        this.area+=s;
+        if(s<endL){this.below++; this.tail+=s;} else {this.below=0; this.tail=0;}
+        if(this.below>=this.hold) this.finish(false);
+        else if(this.len-this.PRE>=maxLen) this.finish(true);
+      }
+    }
+    if(this.n-this.lvlN>=sr*0.1){
+      this.post({type:'lvl',t:this.n/sr,lvl:this.lvl,base:this.baseline,clip:this.clip,rms:this.ic?Math.sqrt(this.isq/this.ic):NaN,sr:sr});
+      this.lvl=0; this.clip=0; this.lvlN=this.n; this.isq=0; this.ic=0;
+    }
+  }
+  startClick(endL,v){
+    const p=this.p;
+    this.inClick=true; this.area=0; this.peak=0; this.below=0; this.tail=0; this.above=0; this.startN=this.n;
+    for(let k=0;k<this.PRE;k++) this.buf[k]=this.ring[(this.ri+k)%this.PRE];
+    this.len=this.PRE;
+    if(p.mode===0){
+      this.sgn=p.pol===1?1:p.pol===2?-1:(v<0?-1:1);
+      const preN=Math.min(this.PRE,Math.max(0,Math.round(p.preUs*1e-6*this.sr)));
+      this.i0=this.PRE-preN;
+      for(let k=this.i0;k<this.PRE;k++){ const s=this.m(this.buf[k]); this.area+=this.sgn*this.buf[k]; if(s>this.peak) this.peak=s; if(s>endL) this.above++; }
+    } else {
+      let k=this.PRE-1, i0=this.PRE;
+      while(k>=0){ const s=this.m(this.buf[k]); if(s<=endL) break; this.area+=s; if(s>this.peak) this.peak=s; this.above++; i0=k; k--; }
+      this.i0=i0;
+    }
+  }
+  finish(trunc){
+    this.inClick=false;
+    let i1=this.len;
+    if(this.p.mode!==0 && this.below>0){ this.area-=this.tail; i1=this.len-this.below; }
+    const msg={type:'click',area:this.area/this.sr*1e6,peak:this.peak,dur:this.above/this.sr*1e6,t:(this.startN-(this.PRE-this.i0))/this.sr,trunc:trunc?1:0};
+    if(this.p.wave && this.startN-this.lastWaveN>this.sr*0.05){
+      this.lastWaveN=this.startN; msg.wave=this.buf.slice(0,this.len); msg.i0=this.i0; msg.i1=i1; msg.sr=this.sr; msg.sgn=this.p.mode===0?this.sgn:0;
+    }
+    for(let k=0;k<this.PRE;k++) this.ring[k]=this.buf[this.len-this.PRE+k];
+    this.ri=0;
+    this.guard=Math.round(this.sr*0.0005);
+    this.post(msg);
+  }
+}
+
+const WORKLET_SRC = ClickCore.toString() + `
+class P extends AudioWorkletProcessor{
+  constructor(){super(); this.c=new ClickCore(sampleRate,m=>this.port.postMessage(m)); this.port.onmessage=e=>this.c.set(e.data);}
+  process(inp){ const ch=inp[0]&&inp[0][0]; if(ch) this.c.feed(ch); return true; }
+}
+registerProcessor('click-proc-field',P);`;
+
+const $=id=>document.getElementById(id);
+const FIELDS=['nf','nr','thr','preUs','winUs','wake','day','freq','slope','vol','wave','sndMode'];
+let soundOn=false; try{soundOn=localStorage.getItem('pirat-field-snd')==='1';}catch(e){}
+try{const s=JSON.parse(localStorage.getItem('pirat-field')||'{}');for(const k of FIELDS) if(s[k]!==undefined){const e=$(k); e.type==='checkbox'?e.checked=s[k]:e.value=s[k];}}catch(e){}
+function saveSettings(){ try{const s={};for(const k of FIELDS){const e=$(k); s[k]=e.type==='checkbox'?e.checked:e.value;} localStorage.setItem('pirat-field',JSON.stringify(s));}catch(e){} }
+function params(){ return {mode:0,preUs:+$('preUs').value,winUs:+$('winUs').value,thr:+$('thr').value/100,pol:0,base:1,wave:0}; }
+document.body.classList.toggle('day',$('day').checked);
+
+let ctx,stream,node,core,sink,running=false,wakeLock=null,osc=null,og=null;
+let fast=[],fastSum=0,ref=null,zeroing=null,peakD=0,lvl=null,clickTimes=[],lastClickAt=0,dirty=true;
+const hist=[]; // {t,d}
+let measures=[]; try{measures=JSON.parse(localStorage.getItem('pirat-field-log')||'[]');}catch(e){}
+
+function setFastN(){ const N=+$('nf').value; while(fast.length>N) fastSum-=fast.shift(); }
+document.querySelectorAll('details input,details select,#snd input,#snd select').forEach(el=>{ if(el.id==='dev') return; el.addEventListener('change',()=>{
+  saveSettings(); if(node&&node.port) node.port.postMessage(params()); else if(core) core.set(params());
+  document.body.classList.toggle('day',$('day').checked); setFastN();
+  if(['thr','preUs','winUs'].includes(el.id) && ref){ ref=null; $('state').textContent='Настройки окна изменены — нажмите «Ноль» заново'; }
+  if(el.id==='wake') applyWake(); if(el.id==='wave'&&osc) osc.type=$('wave').value; sndLabels(); dirty=true; }); el.addEventListener('input',sndLabels); });
+
+function onMsg(m){
+  if(m.type==='lvl'){ lvl=m; dirty=true; return; }
+  const a=m.area, now=performance.now(); lastClickAt=now;
+  clickTimes.push(m.t); while(clickTimes.length && m.t-clickTimes[0]>1) clickTimes.shift();
+  fast.push(a); fastSum+=a; const N=+$('nf').value; while(fast.length>N) fastSum-=fast.shift();
+  if(zeroing){ zeroing.v.push(a); if(zeroing.v.length>=zeroing.N) finishZero(); }
+  if(ref && fast.length>=N){
+    const d=(fastSum/fast.length-ref.mean)/ref.mean*100;
+    if(d>peakD) peakD=d;
+    hist.push({t:now,d}); while(hist.length&&now-hist[0].t>12000) hist.shift();
+  }
+  dirty=true;
+}
+function finishZero(){
+  const v=zeroing.v.slice().sort((p,q)=>p-q), n=v.length, med=v[n>>1];
+  const mad=v.map(x=>Math.abs(x-med)).sort((p,q)=>p-q)[n>>1]*1.4826;
+  const inl=v.filter(x=>Math.abs(x-med)<=4*mad);
+  const mean=inl.reduce((s,x)=>s+x,0)/inl.length;
+  const sd=Math.sqrt(inl.reduce((s,x)=>s+(x-mean)**2,0)/(inl.length-1));
+  ref={mean,sd,at:Date.now(),n}; zeroing=null; peakD=0; hist.length=0;
+  $('state').className='state'; $('state').textContent=`Ноль: ${mean.toFixed(2)} · разброс щелчка ±${(sd/mean*100).toFixed(1)} %`;
+  $('save').disabled=false; $('rpk').disabled=false;
+}
+
+async function listDevices(){ try{const ds=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput');const sel=$('dev'),cur=sel.value;
+  sel.innerHTML='<option value="">по умолчанию</option>'+ds.map(d=>`<option value="${d.deviceId}">${(d.label||'вход '+d.deviceId.slice(0,5)).replace(/</g,'&lt;')}</option>`).join(''); sel.value=cur;}catch(e){} }
+async function applyWake(){
+  try{ if($('wake').checked&&running&&'wakeLock' in navigator){ if(!wakeLock) { wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>wakeLock=null);} }
+       else if(wakeLock){ await wakeLock.release(); wakeLock=null; } }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') applyWake(); });
+
+async function start(){
+  try{
+    const dev=$('dev').value;
+    stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:dev?{exact:dev}:undefined,echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:{ideal:1}}});
+    ctx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
+    const src=ctx.createMediaStreamSource(stream);
+    sink=ctx.createGain(); sink.gain.value=0; sink.connect(ctx.destination);
+    try{
+      await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC],{type:'application/javascript'})));
+      node=new AudioWorkletNode(ctx,'click-proc-field',{numberOfInputs:1,numberOfOutputs:1,channelCount:1,channelCountMode:'explicit',channelInterpretation:'discrete'});
+      node.port.onmessage=e=>onMsg(e.data); node.port.postMessage(params());
+    }catch(err){
+      core=new ClickCore(ctx.sampleRate,onMsg); core.set(params());
+      node=ctx.createScriptProcessor(1024,1,1); node.onaudioprocess=e=>core.feed(e.inputBuffer.getChannelData(0));
+    }
+    src.connect(node); node.connect(sink); await ctx.resume();
+    running=true; $('start').textContent='Стоп'; $('start').classList.add('on'); $('zero').disabled=false;
+    const st=stream.getAudioTracks()[0].getSettings?stream.getAudioTracks()[0].getSettings():{};
+    const bad=[st.autoGainControl&&'АРУ',st.noiseSuppression&&'шумодав',st.echoCancellation&&'эхоподав'].filter(Boolean);
+    $('state').className='state'+(bad.length?' busy':'');
+    $('state').textContent=bad.length?`Внимание: телефон оставил включённым ${bad.join(', ')} — показания будут плыть`:(ref?'Работает. Ноль из прошлого включения — лучше обновить':'Работает. Положите катушку без металла и нажмите «Ноль»');
+    applyWake(); listDevices();
+  }catch(e){ $('state').className='state busy'; $('state').textContent='Ошибка: '+e.message; stop(); }
+}
+function stop(){
+  running=false; silence();
+  try{node&&node.disconnect();}catch(e){} node=null; core=null;
+  if(stream) stream.getTracks().forEach(t=>t.stop()); stream=null;
+  if(ctx) ctx.close(); ctx=null; osc=null; og=null;
+  $('start').textContent='Старт'; $('start').classList.remove('on'); $('zero').disabled=true; zeroing=null;
+  applyWake(); dirty=true;
+}
+$('start').onclick=()=>running?stop():start();
+$('zero').onclick=()=>{ zeroing={N:+$('nr').value,v:[]}; $('state').className='state busy'; $('state').textContent='Обнуление… катушку не двигать, металла рядом нет'; };
+$('rpk').onclick=()=>{ peakD=0; dirty=true; };
+$('dev').onchange=()=>{ if(running){stop(); start();} };
+
+/* звук: только по выходу за полосу, высота растёт с отклонением */
+function silence(){ if(og&&ctx) og.gain.setTargetAtTime(0,ctx.currentTime,0.02); }
+function ensureOsc(){
+  if(!ctx) return false;
+  if(!osc){ osc=ctx.createOscillator(); og=ctx.createGain(); og.gain.value=0; osc.type=$('wave').value; osc.connect(og); og.connect(ctx.destination); osc.start(); }
+  return true;
+}
+const volGain=()=>Math.pow(+$('vol').value/100,2)*0.5;
+let testing=false;
+function tone(d,band){
+  if(!soundOn||testing||!ensureOsc()) return;
+  const base=+$('freq').value, k=+$('slope').value, always=$('sndMode').value==='always';
+  const over=Math.abs(d)>band;
+  if(over||always){
+    let f; if(d>=0) f=base+k*(always?d:d-band); else f=base/2;
+    osc.frequency.setTargetAtTime(Math.min(5000,Math.max(40,f)),ctx.currentTime,0.02);
+    og.gain.setTargetAtTime(volGain(),ctx.currentTime,0.02);
+  } else og.gain.setTargetAtTime(0,ctx.currentTime,0.03);
+}
+function sndLabels(){
+  $('vFreq').textContent=$('freq').value+' Гц'; $('vSlope').textContent='+'+$('slope').value+' Гц'; $('vVol').textContent=$('vol').value+' %';
+  $('sndBtn').textContent='Звук: '+(soundOn?'вкл':'выкл'); $('sndBtn').classList.toggle('on',soundOn);
+}
+$('sndBtn').onclick=()=>{ soundOn=!soundOn; try{localStorage.setItem('pirat-field-snd',soundOn?'1':'0');}catch(e){} if(!soundOn) silence(); sndLabels(); };
+$('test').onclick=async()=>{
+  // если измерение не запущено — отдельный короткий контекст только для проверки
+  let c=ctx, tmp=false; if(!c){ c=new (window.AudioContext||window.webkitAudioContext)(); tmp=true; } await c.resume();
+  const o=c.createOscillator(), g=c.createGain(); o.type=$('wave').value; o.connect(g); g.connect(c.destination);
+  const base=+$('freq').value, k=+$('slope').value, t=c.currentTime; testing=true; silence();
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(volGain(),t+0.02);
+  o.frequency.setValueAtTime(base,t); o.frequency.setValueAtTime(base+k*5,t+0.4); o.frequency.setValueAtTime(base+k*15,t+0.8);
+  g.gain.setValueAtTime(volGain(),t+1.18); g.gain.linearRampToValueAtTime(0,t+1.2);
+  o.start(t); o.stop(t+1.25); o.onended=()=>{ testing=false; if(tmp) c.close(); };
+};
+sndLabels();
+
+/* замеры */
+function curState(){ if(!ref||!fast.length) return null; const N=fast.length, m=fastSum/N, d=(m-ref.mean)/ref.mean*100, sf=ref.sd/Math.sqrt(N)/ref.mean*100; return {m,d,sf,z:d/sf,band:3*sf}; }
+function renderLog(){
+  $('log').innerHTML=measures.slice().reverse().map(r=>`<tr><td>${r.note.replace(/</g,'&lt;')}</td><td>${r.d.toFixed(1)}</td><td>${r.pk.toFixed(1)}</td><td>${r.z.toFixed(1)}</td></tr>`).join('');
+  try{localStorage.setItem('pirat-field-log',JSON.stringify(measures));}catch(e){}
+}
+$('save').onclick=()=>{ const s=curState(); if(!s) return;
+  measures.push({time:new Date().toISOString(),note:$('note').value.trim()||'замер',d:s.d,pk:peakD,z:s.z,band:s.band,ref:ref.mean,refSd:ref.sd,nFast:fast.length,zeroAgeS:Math.round((Date.now()-ref.at)/1000)});
+  $('note').value=''; renderLog(); };
+function csv(){ const c=['time','note','d','pk','z','band','ref','refSd','nFast','zeroAgeS'];
+  return [c.join(';')].concat(measures.map(r=>c.map(k=>typeof r[k]==='number'?String(+r[k].toPrecision(6)).replace('.',','):'"'+String(r[k]).replace(/"/g,'""')+'"').join(';'))).join('\r\n'); }
+$('copy').onclick=async()=>{ try{await navigator.clipboard.writeText(csv()); $('copied').textContent='Скопировано';}catch(e){ $('copied').textContent='Не удалось — используйте «Скачать CSV»'; } setTimeout(()=>$('copied').textContent='',2500); };
+$('dl').onclick=()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+csv()],{type:'text/csv'})); a.download='pirat-field-'+new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')+'.csv'; document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),500); };
+$('clr').onclick=()=>{ if(!measures.length) return; if($('clr').dataset.arm){ measures=[]; renderLog(); delete $('clr').dataset.arm; $('clr').textContent='Очистить'; } else { $('clr').dataset.arm=1; $('clr').textContent='Точно?'; setTimeout(()=>{delete $('clr').dataset.arm; $('clr').textContent='Очистить';},3000); } };
+renderLog();
+
+/* отрисовка */
+const css=n=>getComputedStyle(document.body).getPropertyValue(n).trim();
+function draw(){
+  const s=curState(), now=performance.now();
+  const rate=running&&now-lastClickAt<500?clickTimes.length:0;
+  $('rate').textContent=running?rate+' Гц':'—';
+  if(lvl){ $('lvl').textContent=Math.round(lvl.lvl*100)+' %'; $('lvl').classList.toggle('warn',lvl.clip>0); $('rms').textContent=(lvl.rms*100).toFixed(2)+' %'; }
+  $('ago').textContent=ref?'ноль: '+Math.round((Date.now()-ref.at)/60000)+' мин':'ноль: —';
+  $('ago').classList.toggle('warn',!!ref&&Date.now()-ref.at>5*60000);
+  const D=$('delta');
+  if(zeroing){ D.innerHTML=Math.round(zeroing.v.length/zeroing.N*100)+'<small>%</small>'; D.style.color=css('--hot'); }
+  else if(s){
+    D.innerHTML=(s.d>=0?'+':'−')+Math.abs(s.d).toFixed(Math.abs(s.d)<10?1:0)+'<small>%</small>';
+    D.style.color=s.z>=3?(s.z>=10?css('--max'):s.z>=6?css('--hot'):css('--ok')):s.z<=-3?css('--neg'):css('--text');
+    $('abs').textContent=s.m.toFixed(2); $('z').textContent=s.z.toFixed(1)+'σ'; $('pk').textContent='+'+peakD.toFixed(1)+' %';
+    const span=Math.max(10,s.band*4,Math.abs(s.d)*1.15,peakD*1.15), X=v=>50+50*Math.max(-1,Math.min(1,v/span));
+    $('band').style.left=X(-s.band)+'%'; $('band').style.width=(X(s.band)-X(-s.band))+'%';
+    const f=$('fill'); f.style.left=Math.min(50,X(s.d))+'%'; f.style.width=Math.abs(X(s.d)-50)+'%'; f.style.background=D.style.color;
+    $('pkm').style.left='calc('+X(peakD)+'% - 1px)';
+    $('bl').textContent='−'+span.toFixed(0)+' %'; $('br').textContent='+'+span.toFixed(0)+' %';
+    tone(s.d,s.band);
+  } else if(running&&fast.length){ D.innerHTML='<small>площадь</small> '+(fastSum/fast.length).toFixed(1); D.style.color=css('--text'); $('abs').textContent=(fastSum/fast.length).toFixed(2); }
+  else { D.textContent='—'; D.style.color=css('--text'); }
+  // график
+  const c=$('chart'), r=c.getBoundingClientRect(), dpr=devicePixelRatio||1;
+  if(c.width!==Math.round(r.width*dpr)){c.width=Math.round(r.width*dpr);c.height=Math.round(r.height*dpr);}
+  const g=c.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,r.width,r.height);
+  if(s&&hist.length>1){
+    const W=r.width,H=r.height,T=12000; let mx=Math.max(s.band*2,5); for(const h of hist) mx=Math.max(mx,Math.abs(h.d)*1.1);
+    const Y=v=>H/2-(H/2-6)*v/mx, X=t=>W*(1-(now-t)/T);
+    g.fillStyle=css('--band'); g.fillRect(0,Y(s.band),W,Y(-s.band)-Y(s.band));
+    g.strokeStyle=css('--line'); g.beginPath(); g.moveTo(0,Y(0)); g.lineTo(W,Y(0)); g.stroke();
+    g.strokeStyle=css('--ok'); g.lineWidth=2; g.beginPath(); hist.forEach((h,i)=>i?g.lineTo(X(h.t),Y(h.d)):g.moveTo(X(h.t),Y(h.d))); g.stroke();
+    g.fillStyle=css('--dim'); g.font='11px system-ui'; g.fillText('+'+mx.toFixed(0)+' %',4,12); g.fillText('12 с',W-30,H-4);
+  }
+  requestAnimationFrame(draw);
+}
+if(navigator.mediaDevices) listDevices(); else { $('state').textContent='Нет доступа к аудиовходу: страницу нужно открыть по https'; $('start').disabled=true; }
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
