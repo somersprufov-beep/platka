@@ -41,6 +41,7 @@
   .rowh{display:flex;justify-content:space-between;align-items:center;gap:10px}
   h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:600}
   button.tog{padding:12px 16px;font-size:16px}
+  button.tog.off{background:var(--max);border-color:var(--max);color:#1d0303}
   button.tog.on{background:var(--ok);border-color:var(--ok);color:#03140c}
   label.sl{display:block;margin:14px 0 2px;font-size:15px}
   label.sl b{float:right;font-variant-numeric:tabular-nums}
@@ -82,7 +83,7 @@
 <div class="state" id="state">Нажмите «Старт», затем «Ноль» с катушкой без металла</div>
 
 <div class="card">
-  <div class="rowh"><h3>Чувствительность и звук</h3><button id="sndBtn" class="tog">Звук: выкл</button></div>
+  <div class="rowh"><h3>Чувствительность и звук</h3><button id="sndBtn" class="tog on">🔊 Звук ВКЛ</button></div>
   <label class="sl">Порог чувствительности <b id="vSens"></b>
     <span class="note" id="sensNote">срабатывание, когда площадь выросла больше чем на порог</span>
     <input id="sens" type="range" min="0.5" max="30" step="0.5" value="4"></label>
@@ -203,7 +204,7 @@ registerProcessor('click-proc-field',P);`;
 const $=id=>document.getElementById(id);
 const FIELDS=['nf','nr','thr','preUs','winUs','wake','day','sens','freq','slope','vol','wave','sndMode'];
 try{const s=JSON.parse(localStorage.getItem('pirat-field2')||'{}');for(const k of FIELDS) if(s[k]!==undefined){const e=$(k); e.type==='checkbox'?e.checked=s[k]:e.value=s[k];}}catch(e){}
-let soundOn=false; try{soundOn=localStorage.getItem('pirat-field2-snd')==='1';}catch(e){}
+let soundOn=true; try{soundOn=localStorage.getItem('pirat-field3-snd')!=='0';}catch(e){}
 function saveSettings(){ try{const s={};for(const k of FIELDS){const e=$(k); s[k]=e.type==='checkbox'?e.checked:e.value;} localStorage.setItem('pirat-field2',JSON.stringify(s));}catch(e){} }
 function params(){ return {mode:0,preUs:+$('preUs').value,winUs:+$('winUs').value,thr:+$('thr').value/100,pol:0,base:1,wave:0}; }
 document.body.classList.toggle('day',$('day').checked);
@@ -217,7 +218,7 @@ function labels(){
   $('vFreq').textContent=$('freq').value+' Гц'; $('vSlope').textContent='+'+$('slope').value+' Гц';
   $('vVol').textContent=$('vol').value+' %'; $('vThr').textContent=$('thr').value+' % ПШ';
   $('vPre').textContent=$('preUs').value+' мкс'; $('vWin').textContent=$('winUs').value+' мкс';
-  $('sndBtn').textContent='Звук: '+(soundOn?'вкл':'выкл'); $('sndBtn').classList.toggle('on',soundOn);
+  $('sndBtn').textContent=soundOn?'🔊 Звук ВКЛ':'🔇 Звук ВЫКЛ'; $('sndBtn').classList.toggle('on',soundOn); $('sndBtn').classList.toggle('off',!soundOn);
 }
 document.querySelectorAll('input,select').forEach(el=>{
   el.addEventListener('input',labels);
@@ -277,7 +278,7 @@ function sound(d,band){
   } else silence();
 }
 $('sndBtn').onclick=()=>{
-  soundOn=!soundOn; try{localStorage.setItem('pirat-field2-snd',soundOn?'1':'0');}catch(e){}
+  soundOn=!soundOn; try{localStorage.setItem('pirat-field3-snd',soundOn?'1':'0');}catch(e){}
   if(soundOn&&ctx){ ctx.resume(); ensureOsc(); } else silence();
   labels();
 };
@@ -367,7 +368,7 @@ function draw(){
   }
   // состояние звука
   const ss=$('sstat'); let t, bad=false;
-  if(!soundOn) t='звук выключен';
+  if(!soundOn){ t='звук выключен — нажмите красную кнопку «Звук ВЫКЛ» вверху этого блока'; bad=true; }
   else if(!ctx) t='звук включится после «Старт»';
   else if(ctx.state!=='running'){ t='звук заблокирован телефоном ('+ctx.state+') — коснитесь экрана'; bad=true; }
   else if(!ref) t='звук включится после «Ноль»';
